@@ -1,5 +1,4 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType } from 'docx';
-import jsPDF from 'jspdf';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } from 'docx';
 import html2canvas from 'html2canvas';
 import html2pdf from 'html2pdf.js';
 import { marked } from 'marked';
@@ -57,7 +56,7 @@ export async function exportToWord(
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html;
     
-    const children: Paragraph[] = [];
+    const children: (Paragraph | Table)[] = [];
     
     // 遍历 HTML 元素并转换为 docx 段落
     const processElement = (element: Element) => {
@@ -274,65 +273,6 @@ export async function exportToPDF(
     
     onProgress?.(30, '正在生成 PDF...');
     
-    // 创建完整的 HTML 文档结构
-    const fullHTML = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
-              font-size: 14px;
-              line-height: 1.6;
-              color: #333;
-              padding: 20mm;
-              margin: 0;
-              background: #fff;
-              width: 210mm;
-            }
-            h1, h2, h3, h4, h5, h6 {
-              margin-top: 24px;
-              margin-bottom: 16px;
-              font-weight: 600;
-            }
-            h1 { font-size: 2em; }
-            h2 { font-size: 1.5em; }
-            h3 { font-size: 1.25em; }
-            p { margin: 16px 0; }
-            code {
-              background-color: #f5f5f5;
-              padding: 2px 4px;
-              border-radius: 3px;
-              font-family: 'Courier New', monospace;
-            }
-            pre {
-              background-color: #f5f5f5;
-              padding: 16px;
-              border-radius: 4px;
-              overflow-x: auto;
-            }
-            blockquote {
-              border-left: 4px solid #ddd;
-              padding-left: 16px;
-              color: #666;
-              margin: 16px 0;
-            }
-            ul, ol {
-              padding-left: 30px;
-            }
-            img {
-              max-width: 100%;
-              height: auto;
-            }
-          </style>
-        </head>
-        <body>
-          ${html}
-        </body>
-      </html>
-    `;
-    
     // 查找预览区域，如果存在则使用预览区域的内容
     const previewElement = document.querySelector('.cherry-editor__preview') 
       || document.querySelector('.cherry-previewer')
@@ -377,9 +317,9 @@ export async function exportToPDF(
     
     // 使用 html2pdf.js 将 HTML 转换为 PDF
     const opt = {
-      margin: [20, 20, 20, 20],
+      margin: [20, 20, 20, 20] as [number, number, number, number],
       filename: 'document.pdf',
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { 
         scale: 2,
         useCORS: true,
@@ -395,7 +335,7 @@ export async function exportToPDF(
       jsPDF: { 
         unit: 'mm', 
         format: 'a4', 
-        orientation: 'portrait' 
+        orientation: 'portrait' as const
       },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
     };
@@ -433,7 +373,7 @@ export async function exportToPDF(
  * 将 Markdown 预览内容导出为 PNG 图片（确保从开头截图）
  */
 export async function exportToPNG(
-  markdown: string,
+  _markdown: string,
   filePath: string,
   onProgress?: ExportProgressCallback
 ): Promise<void> {

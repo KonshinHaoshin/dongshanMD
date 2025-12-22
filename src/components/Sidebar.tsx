@@ -6,6 +6,9 @@ interface SidebarProps {
   onToggle: () => void;
   markdownContent?: string;
   onHeadingClick?: (lineNumber: number, headingText?: string) => void;
+  openFiles?: string[];
+  currentFilePath?: string | null;
+  onFileClick?: (filePath: string) => void;
 }
 
 interface Heading {
@@ -83,10 +86,35 @@ const Sidebar: Component<SidebarProps> = (props) => {
         <div class="sidebar-content">
           <Show when={activeTab() === 'files'}>
             <div class="file-tree">
-              <div class="file-item">
-                <span class="file-icon">📄</span>
-                <span class="file-name">未命名文档.md</span>
-              </div>
+              <Show when={!props.openFiles || props.openFiles.length === 0}>
+                <div class="file-empty">暂无打开的文件</div>
+              </Show>
+              <Show when={props.openFiles && props.openFiles.length > 0}>
+                <For each={props.openFiles}>
+                  {(filePath) => {
+                    const fileName = () => {
+                      const parts = filePath.split(/[/\\]/);
+                      return parts[parts.length - 1] || filePath;
+                    };
+                    const isActive = () => filePath === props.currentFilePath;
+                    return (
+                      <div
+                        class="file-item"
+                        classList={{ 'active': isActive() }}
+                        onClick={() => {
+                          if (props.onFileClick) {
+                            props.onFileClick(filePath);
+                          }
+                        }}
+                        title={filePath}
+                      >
+                        <span class="file-icon">📄</span>
+                        <span class="file-name">{fileName()}</span>
+                      </div>
+                    );
+                  }}
+                </For>
+              </Show>
             </div>
           </Show>
           <Show when={activeTab() === 'outline'}>

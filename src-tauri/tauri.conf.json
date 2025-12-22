@@ -9,7 +9,56 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": []
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "copyright": "",
+    "category": "Utility",
+    "shortDescription": "A markdown editor built with Tauri and SolidJS",
+    "longDescription": "",
+    "fileAssociations": [
+      {
+        "ext": ["md"],
+        "description": "Markdown Document",
+        "mimeType": "text/markdown"
+      },
+      {
+        "ext": ["markdown"],
+        "description": "Markdown Document",
+        "mimeType": "text/markdown"
+      },
+      {
+        "ext": ["txt"],
+        "description": "Text Document",
+        "mimeType": "text/plain"
+      }
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": null,
+      "timestampUrl": null,
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": null,
+      "exceptionDomain": null,
+      "signingIdentity": null,
+      "providerShortName": null,
+      "entitlements": null
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
   },
   "productName": "DongshanMD",
   "mainBinaryName": "DongshanMD",
@@ -31,6 +80,7 @@
     ],
     "security": {
       "csp": null
-    }
+    },
+    "withGlobalTauri": false
   }
 }

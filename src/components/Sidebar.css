@@ -94,6 +94,23 @@
   background: #e8e8e8;
 }
 
+.file-item.active {
+  background: #e3f2fd;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.file-item.active:hover {
+  background: #bbdefb;
+}
+
+.file-empty {
+  padding: 16px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+
 .file-icon {
   font-size: 16px;
 }

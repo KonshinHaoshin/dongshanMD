@@ -10,6 +10,8 @@ type ViewMode = 'edit' | 'preview';
 interface EditorProps {
     onContentChange?: (content: string) => void;
     onHeadingClick?: (lineNumber: number, headingText?: string) => void;
+    initialFilePath?: string | null;
+    onFilePathChange?: (filePath: string | null) => void;
 }
 
 const Editor: Component<EditorProps> = (props) => {
@@ -18,7 +20,7 @@ const Editor: Component<EditorProps> = (props) => {
     let cmInstance: any = null; // CodeMirror 实例
     const [viewMode, setViewMode] = createSignal<ViewMode>('edit');
     const [, setMarkdownContent] = createSignal<string>('');
-    const [currentFilePath, setCurrentFilePath] = createSignal<string | null>(null);
+    const [currentFilePath, setCurrentFilePath] = createSignal<string | null>(props.initialFilePath || null);
     const [isModified, setIsModified] = createSignal<boolean>(false);
     const [showExportMenu, setShowExportMenu] = createSignal<boolean>(false);
     const [isExporting, setIsExporting] = createSignal<boolean>(false);
@@ -84,6 +86,69 @@ const Editor: Component<EditorProps> = (props) => {
         }, 50);
     };
 
+    // 从文件路径加载文件
+    const loadFileFromPath = async (filePath: string) => {
+        try {
+            // 清理文件路径，移除可能的引号
+            let cleanedPath = filePath.trim().replace(/^["']|["']$/g, '');
+            console.log('准备加载文件，原始路径:', cleanedPath);
+
+            // 注意：后端已经处理了路径转换，这里直接使用接收到的路径
+            // 如果是相对路径（Windows 文件关联可能传递相对路径），后端会转换为绝对路径
+
+            // 检查文件扩展名
+            const lowerPath = cleanedPath.toLowerCase();
+            const isTextFile = lowerPath.endsWith('.txt') ||
+                lowerPath.endsWith('.md') ||
+                lowerPath.endsWith('.markdown');
+
+            if (!isTextFile) {
+                console.warn('不支持的文件类型:', cleanedPath);
+                alert('不支持的文件类型，仅支持 .md、.markdown 和 .txt 文件');
+                return;
+            }
+
+            const { readTextFile } = await import('@tauri-apps/plugin-fs');
+            console.log('开始读取文件:', cleanedPath);
+            const content = await readTextFile(cleanedPath);
+            
+            // 先设置文件路径和状态
+            setCurrentFilePath(cleanedPath);
+            setIsModified(false);
+            
+            // 通知父组件文件路径变化
+            if (props.onFilePathChange) {
+                props.onFilePathChange(cleanedPath);
+            }
+            
+            // 确保编辑器实例存在且内容正确设置
+            if (cherryInstance) {
+                const instance = cherryInstance as any;
+                // 使用 setMarkdown 设置内容
+                if (instance.setMarkdown) {
+                    instance.setMarkdown(content);
+                    console.log('文件内容已设置，长度:', content.length);
+                } else {
+                    console.error('编辑器实例没有 setMarkdown 方法');
+                    return;
+                }
+                
+                // 切换到预览模式
+                setTimeout(() => {
+                    setViewMode('preview');
+                    updateEditorMode('preview');
+                }, 200);
+            } else {
+                console.error('编辑器实例不存在，无法加载文件内容');
+            }
+            
+            console.log('文件加载成功:', cleanedPath);
+        } catch (error) {
+            console.error('加载文件失败:', error);
+            alert(`加载文件失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
+    };
+
     // 打开文件
     const handleOpenFile = async () => {
         try {
@@ -91,8 +156,17 @@ const Editor: Component<EditorProps> = (props) => {
             if (result) {
                 setCurrentFilePath(result.path);
                 setIsModified(false);
+                // 通知父组件文件路径变化
+                if (props.onFilePathChange) {
+                    props.onFilePathChange(result.path);
+                }
                 if (cherryInstance) {
                     (cherryInstance as any).setMarkdown(result.content);
+                    // 切换到预览模式
+                    setTimeout(() => {
+                        setViewMode('preview');
+                        updateEditorMode('preview');
+                    }, 100);
                 }
             }
         } catch (error) {
@@ -114,12 +188,18 @@ const Editor: Component<EditorProps> = (props) => {
                 await saveToFile(filePath, content);
                 setIsModified(false);
                 console.log('文件已保存:', filePath);
+                // 显示保存成功提示
+                alert('文件已保存');
             } else {
                 // 另存为
                 const savedPath = await saveFile(content);
                 if (savedPath) {
                     setCurrentFilePath(savedPath);
                     setIsModified(false);
+                    // 通知父组件文件路径变化
+                    if (props.onFilePathChange) {
+                        props.onFilePathChange(savedPath);
+                    }
                     console.log('文件已保存:', savedPath);
                 }
             }
@@ -140,6 +220,10 @@ const Editor: Component<EditorProps> = (props) => {
             if (savedPath) {
                 setCurrentFilePath(savedPath);
                 setIsModified(false);
+                // 通知父组件文件路径变化
+                if (props.onFilePathChange) {
+                    props.onFilePathChange(savedPath);
+                }
                 console.log('文件已另存为:', savedPath);
             }
         } catch (error) {
@@ -320,6 +404,20 @@ const Editor: Component<EditorProps> = (props) => {
             //     instance.on('afterChange', updateContent);
             // }
 
+            // 如果有初始文件路径，加载文件（延迟确保编辑器完全初始化）
+            const initialPath = props.initialFilePath;
+            if (initialPath) {
+                console.log('检测到初始文件路径，将在编辑器初始化后加载:', initialPath);
+                // 增加延迟，确保编辑器完全准备好
+                setTimeout(() => {
+                    if (cherryInstance) {
+                        loadFileFromPath(initialPath);
+                    } else {
+                        console.error('编辑器初始化超时，无法加载初始文件');
+                    }
+                }, 400);
+            }
+
             // 移除 MutationObserver，因为它会触发太频繁
             // observer = new MutationObserver(() => {
             //     updateContent();
@@ -341,6 +439,34 @@ const Editor: Component<EditorProps> = (props) => {
                 clearInterval(intervalId);
             }
         });
+    });
+
+    // 响应式监听 initialFilePath 的变化（用于文件关联打开等场景）
+    createEffect(() => {
+        const filePath = props.initialFilePath;
+        if (!filePath) return;
+        
+        // 如果文件路径相同，不需要重新加载
+        if (filePath === currentFilePath()) {
+            console.log('文件路径相同，跳过加载:', filePath);
+            return;
+        }
+
+        // 只有当编辑器已初始化时才加载（避免与 onMount 中的加载冲突）
+        if (cherryInstance) {
+            console.log('Editor initialFilePath 变化，开始加载:', filePath);
+            const timeoutId = window.setTimeout(() => {
+                loadFileFromPath(filePath);
+            }, 100);
+            
+            // 清理函数
+            return () => {
+                clearTimeout(timeoutId);
+            };
+        } else {
+            // 编辑器未初始化时，会在 onMount 中处理
+            console.log('编辑器未初始化，将在 onMount 中处理文件加载');
+        }
     });
 
     // 跳转到指定行
@@ -448,25 +574,27 @@ const Editor: Component<EditorProps> = (props) => {
                 let previewElement: Element | null = null;
 
                 // 方式1: 查找 .cherry-editor__preview
-                previewElement = editorContainer?.querySelector('.cherry-editor__preview');
+                if (editorContainer) {
+                    previewElement = editorContainer.querySelector('.cherry-editor__preview');
+                }
 
                 // 方式2: 查找 .cherry-previewer（实际内容容器）
-                if (!previewElement) {
-                    previewElement = editorContainer?.querySelector('.cherry-previewer');
+                if (!previewElement && editorContainer) {
+                    previewElement = editorContainer.querySelector('.cherry-previewer');
                 }
 
                 // 方式3: 查找包含 markdown 内容的容器
-                if (!previewElement) {
-                    previewElement = editorContainer?.querySelector('.cherry-markdown');
+                if (!previewElement && editorContainer) {
+                    previewElement = editorContainer.querySelector('.cherry-markdown');
                 }
 
                 // 方式4: 查找任何包含 preview 的类
-                if (!previewElement) {
-                    previewElement = editorContainer?.querySelector('[class*="preview"]');
+                if (!previewElement && editorContainer) {
+                    previewElement = editorContainer.querySelector('[class*="preview"]');
                 }
 
                 // 方式5: 在整个容器中查找
-                if (!previewElement) {
+                if (!previewElement && editorContainer) {
                     previewElement = editorContainer;
                 }
 
@@ -612,6 +740,7 @@ const Editor: Component<EditorProps> = (props) => {
     createEffect(() => {
         (window as any).__editorJumpToLine = jumpToLine;
     });
+
 
     // 更新进度条宽度
     createEffect(() => {
