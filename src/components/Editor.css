@@ -79,6 +79,113 @@
     background: #e8e8e8;
 }
 
+.export-menu-container {
+    position: relative;
+}
+
+.export-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: #fff;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 150px;
+    overflow: hidden;
+}
+
+.export-menu-item {
+    width: 100%;
+    padding: 8px 16px;
+    font-size: 12px;
+    border: none;
+    background: #fff;
+    color: #666;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.export-menu-item:hover {
+    background: #f5f5f5;
+}
+
+.export-menu-item:active {
+    background: #e8e8e8;
+}
+
+.export-menu-item:not(:last-child) {
+    border-bottom: 1px solid #f0f0f0;
+}
+
+
+/* 导出进度覆盖层 */
+
+.export-progress-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.export-progress-dialog {
+    background: #fff;
+    border-radius: 8px;
+    padding: 24px;
+    min-width: 300px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.export-progress-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.export-progress-bar-container {
+    width: 100%;
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.export-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #4285f4, #34a853);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.export-progress-message {
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.export-progress-percent {
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+}
+
 .view-mode-indicator {
     display: flex;
     align-items: center;

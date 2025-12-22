@@ -3,6 +3,7 @@ import Cherry from 'cherry-markdown';
 import 'cherry-markdown/dist/cherry-markdown.css';
 import './Editor.css';
 import { openFile, saveFile, saveToFile } from '../utils/fileOperations';
+import { exportFile, ExportProgressCallback } from '../utils/exportUtils';
 
 type ViewMode = 'edit' | 'preview';
 
@@ -19,6 +20,11 @@ const Editor: Component<EditorProps> = (props) => {
     const [, setMarkdownContent] = createSignal<string>('');
     const [currentFilePath, setCurrentFilePath] = createSignal<string | null>(null);
     const [isModified, setIsModified] = createSignal<boolean>(false);
+    const [showExportMenu, setShowExportMenu] = createSignal<boolean>(false);
+    const [isExporting, setIsExporting] = createSignal<boolean>(false);
+    const [exportProgress, setExportProgress] = createSignal<number>(0);
+    const [exportMessage, setExportMessage] = createSignal<string>('');
+    let progressBarElement: HTMLDivElement | undefined;
 
     // 切换显示模式（只在源码和预览之间切换）
     const toggleViewMode = () => {
@@ -142,6 +148,54 @@ const Editor: Component<EditorProps> = (props) => {
         }
     };
 
+    // 导出功能
+    const handleExport = async (format: 'word' | 'pdf' | 'png' | 'html') => {
+        try {
+            if (!cherryInstance || isExporting()) return;
+
+            setIsExporting(true);
+            setExportProgress(0);
+            setExportMessage('准备导出...');
+            setShowExportMenu(false);
+
+            const content = (cherryInstance as any).getMarkdown?.() || '';
+            const fileName = getFileName().replace(/\.[^/.]+$/, '') || 'Document';
+
+            // 如果是 PDF 或 PNG，需要确保在预览模式
+            if (format === 'pdf' || format === 'png') {
+                if (viewMode() !== 'preview') {
+                    setExportMessage('正在切换到预览模式...');
+                    setViewMode('preview');
+                    updateEditorMode('preview');
+                    // 等待预览渲染完成
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                }
+            }
+
+            // 进度回调函数
+            const onProgress: ExportProgressCallback = (progress, message) => {
+                setExportProgress(progress);
+                setExportMessage(message);
+            };
+
+            // 异步导出
+            await exportFile(format, content, fileName, onProgress);
+
+            // 导出完成
+            setTimeout(() => {
+                setIsExporting(false);
+                setExportProgress(0);
+                setExportMessage('');
+            }, 500);
+        } catch (error) {
+            console.error(`导出 ${format} 失败:`, error);
+            setIsExporting(false);
+            setExportProgress(0);
+            setExportMessage('');
+            alert(`导出失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
+    };
+
     // 快捷键处理
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.ctrlKey && e.key === '/') {
@@ -156,11 +210,22 @@ const Editor: Component<EditorProps> = (props) => {
         }
     };
 
+    // 点击外部关闭导出菜单
+    const handleClickOutside = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.export-menu-container')) {
+            setShowExportMenu(false);
+        }
+    };
+
     onMount(() => {
         if (!editorContainer) return;
 
         // 添加键盘事件监听
         window.addEventListener('keydown', handleKeyDown);
+
+        // 添加点击外部关闭菜单的监听
+        document.addEventListener('click', handleClickOutside);
 
         const options: any = {
             id: 'editor',
@@ -548,8 +613,16 @@ const Editor: Component<EditorProps> = (props) => {
         (window as any).__editorJumpToLine = jumpToLine;
     });
 
+    // 更新进度条宽度
+    createEffect(() => {
+        if (progressBarElement) {
+            progressBarElement.style.width = `${exportProgress()}%`;
+        }
+    });
+
     onCleanup(() => {
         window.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('click', handleClickOutside);
         if (cherryInstance) {
             cherryInstance.destroy();
             cherryInstance = null;
@@ -597,6 +670,43 @@ const Editor: Component<EditorProps> = (props) => {
                         >
                             💾 另存为
                         </button>
+                        <div class="export-menu-container">
+                            <button
+                                class="file-btn"
+                                onClick={() => setShowExportMenu(!showExportMenu())}
+                                title="导出文档"
+                            >
+                                📤 导出
+                            </button>
+                            {showExportMenu() && (
+                                <div class="export-menu">
+                                    <button
+                                        class="export-menu-item"
+                                        onClick={() => handleExport('word')}
+                                    >
+                                        📄 Word (.docx)
+                                    </button>
+                                    <button
+                                        class="export-menu-item"
+                                        onClick={() => handleExport('pdf')}
+                                    >
+                                        📑 PDF (.pdf)
+                                    </button>
+                                    <button
+                                        class="export-menu-item"
+                                        onClick={() => handleExport('png')}
+                                    >
+                                        🖼️ PNG (.png)
+                                    </button>
+                                    <button
+                                        class="export-menu-item"
+                                        onClick={() => handleExport('html')}
+                                    >
+                                        🌐 HTML (.html)
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div class="view-mode-indicator">
                         <span class="mode-label">显示模式:</span>
@@ -618,6 +728,21 @@ const Editor: Component<EditorProps> = (props) => {
                 </div>
             </div>
             <div ref={editorContainer} id="editor" class="cherry-editor" />
+            {isExporting() && (
+                <div class="export-progress-overlay">
+                    <div class="export-progress-dialog">
+                        <div class="export-progress-title">正在导出...</div>
+                        <div class="export-progress-bar-container">
+                            <div
+                                ref={progressBarElement}
+                                class="export-progress-bar"
+                            />
+                        </div>
+                        <div class="export-progress-message">{exportMessage()}</div>
+                        <div class="export-progress-percent">{exportProgress()}%</div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
