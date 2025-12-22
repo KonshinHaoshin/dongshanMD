@@ -1,7 +1,6 @@
 # DongshanMD
 
 一个基于 Tauri + SolidJS + TypeScript + CherryMarkdown 的 Markdown 编辑器。
-测试
 
 ## 技术栈
 
