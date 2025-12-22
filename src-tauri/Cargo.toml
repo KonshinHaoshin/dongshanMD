@@ -1,0 +1,26 @@
+[package]
+name = "dongshan-md"
+version = "0.1.0"
+description = "A markdown editor built with Tauri and SolidJS"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = { version = "2", features = [] }
+tauri-plugin-dialog = { version = "2", features = [] }
+tauri-plugin-fs = { version = "2", features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[features]
+# This feature is used for production builds or when `devPath` points to the filesystem
+custom-protocol = ["tauri/custom-protocol"]
+
