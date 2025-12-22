@@ -2,6 +2,7 @@ import { Component, onMount, onCleanup, createSignal, createEffect } from 'solid
 import Cherry from 'cherry-markdown';
 import 'cherry-markdown/dist/cherry-markdown.css';
 import './Editor.css';
+import { openFile, saveFile, saveToFile } from '../utils/fileOperations';
 
 type ViewMode = 'edit' | 'preview';
 
@@ -16,6 +17,8 @@ const Editor: Component<EditorProps> = (props) => {
     let cmInstance: any = null; // CodeMirror 实例
     const [viewMode, setViewMode] = createSignal<ViewMode>('edit');
     const [, setMarkdownContent] = createSignal<string>('');
+    const [currentFilePath, setCurrentFilePath] = createSignal<string | null>(null);
+    const [isModified, setIsModified] = createSignal<boolean>(false);
 
     // 切换显示模式（只在源码和预览之间切换）
     const toggleViewMode = () => {
@@ -75,11 +78,81 @@ const Editor: Component<EditorProps> = (props) => {
         }, 50);
     };
 
+    // 打开文件
+    const handleOpenFile = async () => {
+        try {
+            const result = await openFile();
+            if (result) {
+                setCurrentFilePath(result.path);
+                setIsModified(false);
+                if (cherryInstance) {
+                    (cherryInstance as any).setMarkdown(result.content);
+                }
+            }
+        } catch (error) {
+            console.error('打开文件失败:', error);
+            alert('打开文件失败，请重试');
+        }
+    };
+
+    // 保存文件
+    const handleSaveFile = async () => {
+        try {
+            if (!cherryInstance) return;
+
+            const content = (cherryInstance as any).getMarkdown?.() || '';
+            const filePath = currentFilePath();
+
+            if (filePath) {
+                // 保存到当前文件
+                await saveToFile(filePath, content);
+                setIsModified(false);
+                console.log('文件已保存:', filePath);
+            } else {
+                // 另存为
+                const savedPath = await saveFile(content);
+                if (savedPath) {
+                    setCurrentFilePath(savedPath);
+                    setIsModified(false);
+                    console.log('文件已保存:', savedPath);
+                }
+            }
+        } catch (error) {
+            console.error('保存文件失败:', error);
+            alert('保存文件失败，请重试');
+        }
+    };
+
+    // 另存为
+    const handleSaveAsFile = async () => {
+        try {
+            if (!cherryInstance) return;
+
+            const content = (cherryInstance as any).getMarkdown?.() || '';
+            const savedPath = await saveFile(content, currentFilePath() || undefined);
+
+            if (savedPath) {
+                setCurrentFilePath(savedPath);
+                setIsModified(false);
+                console.log('文件已另存为:', savedPath);
+            }
+        } catch (error) {
+            console.error('另存为失败:', error);
+            alert('另存为失败，请重试');
+        }
+    };
+
     // 快捷键处理
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.ctrlKey && e.key === '/') {
             e.preventDefault();
             toggleViewMode();
+        } else if (e.ctrlKey && e.key === 'o') {
+            e.preventDefault();
+            handleOpenFile();
+        } else if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            handleSaveFile();
         }
     };
 
@@ -140,6 +213,10 @@ const Editor: Component<EditorProps> = (props) => {
                             setMarkdownContent(currentContent);
                             if (props.onContentChange) {
                                 props.onContentChange(currentContent);
+                            }
+                            // 标记为已修改（如果有打开的文件）
+                            if (currentFilePath()) {
+                                setIsModified(true);
                             }
                         }
                     } catch (error) {
@@ -479,13 +556,48 @@ const Editor: Component<EditorProps> = (props) => {
         }
     });
 
+    // 获取文件名显示
+    const getFileName = () => {
+        const path = currentFilePath();
+        if (!path) return '未命名文档';
+        const parts = path.split(/[/\\]/);
+        return parts[parts.length - 1] || '未命名文档';
+    };
+
     return (
         <div class="editor-container">
             <div class="editor-header">
                 <div class="header-left">
                     <h1>DongshanMD</h1>
+                    <span class="file-name" title={currentFilePath() || ''}>
+                        {getFileName()}
+                        {isModified() && <span class="modified-indicator"> *</span>}
+                    </span>
                 </div>
                 <div class="header-right">
+                    <div class="file-actions">
+                        <button
+                            class="file-btn"
+                            onClick={handleOpenFile}
+                            title="打开文件 (Ctrl+O)"
+                        >
+                            📂 打开
+                        </button>
+                        <button
+                            class="file-btn"
+                            onClick={handleSaveFile}
+                            title="保存文件 (Ctrl+S)"
+                        >
+                            💾 保存
+                        </button>
+                        <button
+                            class="file-btn"
+                            onClick={handleSaveAsFile}
+                            title="另存为"
+                        >
+                            💾 另存为
+                        </button>
+                    </div>
                     <div class="view-mode-indicator">
                         <span class="mode-label">显示模式:</span>
                         <button

@@ -1,346 +1,433 @@
 .editor-container {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: #fff;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
 }
 
 .editor-header {
-  padding: 8px 16px;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    padding: 8px 16px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .header-left h1 {
-  font-size: 14px;
-  font-weight: 500;
-  color: #666;
-  margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: #666;
+    margin: 0;
+}
+
+.file-name {
+    font-size: 12px;
+    color: #888;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modified-indicator {
+    color: #ff6b6b;
+    font-weight: bold;
 }
 
 .header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.file-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 12px;
+}
+
+.file-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+    border: 1px solid #d0d0d0;
+    background: #fff;
+    color: #666;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.file-btn:hover {
+    background: #f5f5f5;
+    border-color: #b0b0b0;
+}
+
+.file-btn:active {
+    background: #e8e8e8;
 }
 
 .view-mode-indicator {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .mode-label {
-  font-size: 12px;
-  color: #666;
-  margin-right: 4px;
+    font-size: 12px;
+    color: #666;
+    margin-right: 4px;
 }
 
 .mode-btn {
-  padding: 4px 12px;
-  font-size: 12px;
-  border: 1px solid #d0d0d0;
-  background: #fff;
-  color: #666;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.2s;
+    padding: 4px 12px;
+    font-size: 12px;
+    border: 1px solid #d0d0d0;
+    background: #fff;
+    color: #666;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
 }
 
 .mode-btn:hover {
-  background: #f5f5f5;
-  border-color: #b0b0b0;
+    background: #f5f5f5;
+    border-color: #b0b0b0;
 }
 
 .mode-btn.active {
-  background: #4285f4;
-  color: #fff;
-  border-color: #4285f4;
+    background: #4285f4;
+    color: #fff;
+    border-color: #4285f4;
 }
 
 .cherry-editor {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
 }
 
+
 /* CherryMarkdown 样式覆盖 - Typora 风格 */
+
 .cherry-editor .cherry-editor__inner {
-  height: 100%;
+    height: 100%;
 }
 
 .cherry-editor .cherry {
-  height: 100%;
+    height: 100%;
 }
 
+
 /* Typora 风格的编辑器样式 */
+
 .cherry-editor .cherry-editor__inner .cherry-editor__main {
-  background: #fff;
+    background: #fff;
 }
 
 .cherry-editor .cherry-editor__inner .cherry-editor__main .cherry-editor__edit {
-  background: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
-  color: #333;
+    background: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #333;
 }
 
 .cherry-editor .cherry-editor__inner .cherry-editor__main .cherry-editor__preview {
-  background: #fafafa;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.8;
-  color: #333;
-  padding: 40px;
+    background: #fafafa;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    color: #333;
+    padding: 40px;
 }
 
+
 /* 双栏模式：使编辑区和预览区宽度相等 */
+
 .cherry-editor .cherry-editor__inner .cherry-editor__main.cherry-editor__main--edit-preview {
-  display: flex;
+    display: flex;
 }
 
 .cherry-editor .cherry-editor__inner .cherry-editor__main.cherry-editor__main--edit-preview .cherry-editor__edit {
-  flex: 1;
-  width: 50%;
-  min-width: 0;
+    flex: 1;
+    width: 50%;
+    min-width: 0;
 }
 
 .cherry-editor .cherry-editor__inner .cherry-editor__main.cherry-editor__main--edit-preview .cherry-editor__preview {
-  flex: 1;
-  width: 50%;
-  min-width: 0;
+    flex: 1;
+    width: 50%;
+    min-width: 0;
 }
 
+
 /* CodeMirror 编辑器区域 */
+
 .cherry-editor .CodeMirror {
-  height: 100%;
-  font-size: 16px;
-  line-height: 1.6;
-  display: block !important;
+    height: 100%;
+    font-size: 16px;
+    line-height: 1.6;
+    display: block !important;
 }
 
 .cherry-editor .CodeMirror-scroll {
-  height: 100%;
-  overflow: auto;
-  display: block !important;
+    height: 100%;
+    overflow: auto;
+    display: block !important;
 }
 
+
 /* 确保编辑模式可见 */
+
 .cherry-editor .cherry-editor__main[class*="editOnly"] .cherry-editor__edit,
 .cherry-editor .cherry-editor__main[class*="edit-only"] .cherry-editor__edit {
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .cherry-editor .cherry-editor__main[class*="editOnly"] .cherry-editor__preview,
 .cherry-editor .cherry-editor__main[class*="edit-only"] .cherry-editor__preview {
-  display: none !important;
+    display: none !important;
 }
 
+
 /* 确保预览模式可见 */
+
 .cherry-editor .cherry-editor__main[class*="previewOnly"] .cherry-editor__preview,
 .cherry-editor .cherry-editor__main[class*="preview-only"] .cherry-editor__preview {
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .cherry-editor .cherry-editor__main[class*="previewOnly"] .cherry-editor__edit,
 .cherry-editor .cherry-editor__main[class*="preview-only"] .cherry-editor__edit {
-  display: none !important;
+    display: none !important;
 }
 
+
 /* 预览区域 */
+
 .cherry-editor .cherry-previewer {
-  height: 100%;
-  overflow-y: auto;
-  padding: 40px;
-  box-sizing: border-box;
+    height: 100%;
+    overflow-y: auto;
+    padding: 40px;
+    box-sizing: border-box;
 }
 
 .cherry-editor .cherry-markdown.default {
-  max-width: 100%;
+    max-width: 100%;
 }
+
 
 /* 确保双栏模式下两个区域宽度相等 - 通用选择器 */
+
 .cherry-editor .cherry-editor__main[class*="edit-preview"],
 .cherry-editor .cherry-editor__main[class*="edit&preview"] {
-  display: flex !important;
-  flex-direction: row !important;
+    display: flex !important;
+    flex-direction: row !important;
 }
 
-.cherry-editor .cherry-editor__main[class*="edit-preview"] > div,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] > div {
-  flex: 1 1 50% !important;
-  min-width: 0 !important;
-  max-width: 50% !important;
-  width: 50% !important;
+.cherry-editor .cherry-editor__main[class*="edit-preview"]>div,
+.cherry-editor .cherry-editor__main[class*="edit&preview"]>div {
+    flex: 1 1 50% !important;
+    min-width: 0 !important;
+    max-width: 50% !important;
+    width: 50% !important;
 }
+
 
 /* 双栏模式：强制两个区域各占 50% */
+
 .cherry-editor .cherry-editor__main.cherry-editor__main--edit-preview,
 .cherry-editor .cherry-editor__main[class*="edit-preview"],
 .cherry-editor .cherry-editor__main[class*="edit&preview"] {
-  display: flex !important;
-  flex-direction: row !important;
+    display: flex !important;
+    flex-direction: row !important;
 }
 
-.cherry-editor .cherry-editor__main.cherry-editor__main--edit-preview > div,
-.cherry-editor .cherry-editor__main[class*="edit-preview"] > div,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] > div {
-  flex: 1 1 50% !important;
-  min-width: 0 !important;
-  max-width: 50% !important;
-  width: 50% !important;
+.cherry-editor .cherry-editor__main.cherry-editor__main--edit-preview>div,
+.cherry-editor .cherry-editor__main[class*="edit-preview"]>div,
+.cherry-editor .cherry-editor__main[class*="edit&preview"]>div {
+    flex: 1 1 50% !important;
+    min-width: 0 !important;
+    max-width: 50% !important;
+    width: 50% !important;
 }
+
 
 /* 编辑区域在双栏模式下 */
+
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit,
 .cherry-editor .cherry-editor__main.cherry-editor__main--edit-preview .cherry-editor__edit {
-  flex: 0 0 50% !important;
-  width: 50% !important;
-  max-width: 50% !important;
-  min-width: 0 !important;
+    flex: 0 0 50% !important;
+    width: 50% !important;
+    max-width: 50% !important;
+    min-width: 0 !important;
 }
 
+
 /* 预览区域在双栏模式下 */
+
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview,
 .cherry-editor .cherry-editor__main.cherry-editor__main--edit-preview .cherry-editor__preview {
-  flex: 0 0 50% !important;
-  width: 50% !important;
-  max-width: 50% !important;
-  min-width: 0 !important;
+    flex: 0 0 50% !important;
+    width: 50% !important;
+    max-width: 50% !important;
+    min-width: 0 !important;
 }
 
+
 /* CodeMirror 容器在双栏模式下 */
+
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit .CodeMirror,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit .CodeMirror {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
 }
 
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit .CodeMirror-scroll,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit .CodeMirror-scroll {
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
 }
 
+
 /* 预览容器在双栏模式下 */
+
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview .cherry-previewer,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview .cherry-previewer {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
 }
 
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview .cherry-markdown.default,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview .cherry-markdown.default {
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
 }
+
 
 /* 强制覆盖所有可能的宽度设置 */
+
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit {
-  overflow: hidden !important;
+    overflow: hidden !important;
 }
 
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview {
-  overflow: hidden !important;
+    overflow: hidden !important;
 }
+
 
 /* 覆盖 CherryMarkdown 可能设置的固定宽度 */
+
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview {
-  overflow: hidden !important;
+    overflow: hidden !important;
 }
 
 .cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit,
 .cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit {
-  overflow: hidden !important;
+    overflow: hidden !important;
 }
+
 
 /* 最强制性的规则：直接针对所有可能的类名组合 */
+
 .cherry-editor [class*="cherry-editor__main"][class*="edit"][class*="preview"] {
-  display: flex !important;
-  flex-direction: row !important;
+    display: flex !important;
+    flex-direction: row !important;
 }
 
-.cherry-editor [class*="cherry-editor__main"][class*="edit"][class*="preview"] > [class*="cherry-editor__edit"] {
-  flex: 0 0 50% !important;
-  width: 50% !important;
-  max-width: 50% !important;
-  min-width: 0 !important;
-  box-sizing: border-box !important;
-  display: block !important;
+.cherry-editor [class*="cherry-editor__main"][class*="edit"][class*="preview"]>[class*="cherry-editor__edit"] {
+    flex: 0 0 50% !important;
+    width: 50% !important;
+    max-width: 50% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    display: block !important;
 }
 
-.cherry-editor [class*="cherry-editor__main"][class*="edit"][class*="preview"] > [class*="cherry-editor__preview"] {
-  flex: 0 0 50% !important;
-  width: 50% !important;
-  max-width: 50% !important;
-  min-width: 0 !important;
-  box-sizing: border-box !important;
-  display: block !important;
+.cherry-editor [class*="cherry-editor__main"][class*="edit"][class*="preview"]>[class*="cherry-editor__preview"] {
+    flex: 0 0 50% !important;
+    width: 50% !important;
+    max-width: 50% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    display: block !important;
 }
+
 
 /* 确保编辑器容器始终可见 */
+
 .cherry-editor .cherry-editor__inner {
-  height: 100% !important;
-  display: block !important;
+    height: 100% !important;
+    display: block !important;
 }
 
 .cherry-editor .cherry {
-  height: 100% !important;
-  display: block !important;
+    height: 100% !important;
+    display: block !important;
 }
 
 .cherry-editor .cherry-editor__main {
-  height: 100% !important;
-  display: flex !important;
-  flex-direction: row !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
 }
 
+
 /* 工具栏样式优化 */
+
 .cherry-editor .cherry-toolbar {
-  background: #fafafa;
-  border-bottom: 1px solid #e0e0e0;
-  padding: 8px 16px;
+    background: #fafafa;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 8px 16px;
 }
 
 .cherry-editor .cherry-toolbar .cherry-toolbar-button {
-  color: #666;
-  padding: 6px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+    color: #666;
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
 }
 
 .cherry-editor .cherry-toolbar .cherry-toolbar-button:hover {
-  background: #e8e8e8;
+    background: #e8e8e8;
 }
+
 
 /* 标题高亮效果 */
-.heading-highlight {
-  background-color: rgba(66, 133, 244, 0.1) !important;
-  transition: background-color 0.3s ease !important;
-  border-radius: 4px;
-  padding: 2px 4px;
-  margin: -2px -4px;
-}
 
+.heading-highlight {
+    background-color: rgba(66, 133, 244, 0.1) !important;
+    transition: background-color 0.3s ease !important;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+}
