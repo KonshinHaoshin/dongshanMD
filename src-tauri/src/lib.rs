@@ -1,17 +1,12 @@
 mod app;
-
-// 命令定义
-#[tauri::command]
-pub fn get_file_args() -> Vec<String> {
-    std::env::args().skip(1).collect()
-}
+mod commands;
 
 pub fn run_app() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![get_file_args])
+        .invoke_handler(tauri::generate_handler![commands::get_file_args])
         .setup(|app| {
             // 处理通过文件关联打开的文件
             let app_handle = app.handle().clone();

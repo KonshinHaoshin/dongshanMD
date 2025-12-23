@@ -3,21 +3,16 @@
 
 // main.rs 仅用于桌面平台
 // 注意：main.rs 和 lib.rs 在不同的目标中（bin vs lib），
-// 因此它们可以各自定义命令而不会冲突
+// 但为了避免命令定义冲突，我们使用共享的 commands 模块
 mod app;
-
-// 在 main.rs 中也定义命令（用于桌面平台）
-#[tauri::command]
-fn get_file_args() -> Vec<String> {
-    std::env::args().skip(1).collect()
-}
+mod commands;
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![get_file_args])
+        .invoke_handler(tauri::generate_handler![commands::get_file_args])
         .setup(|app| {
             let app_handle = app.handle().clone();
             let args: Vec<String> = std::env::args().skip(1).collect();
