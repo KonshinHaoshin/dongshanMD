@@ -65,7 +65,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
 
   return (
     <Show when={props.visible}>
-      <div class="sidebar">
+      <div class="sidebar show">
         <div class="sidebar-header">
           <div class="sidebar-tabs">
             <button
