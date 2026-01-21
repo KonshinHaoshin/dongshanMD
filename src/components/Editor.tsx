@@ -4,6 +4,7 @@ import 'cherry-markdown/dist/cherry-markdown.css';
 import './Editor.css';
 import { openFile, saveFile, saveToFile } from '../utils/fileOperations';
 import { exportFile, ExportProgressCallback } from '../utils/exportUtils';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 type ViewMode = 'edit' | 'preview';
 
@@ -19,7 +20,7 @@ const Editor: Component<EditorProps> = (props) => {
     let cherryInstance: Cherry | null = null;
     let cmInstance: any = null; // CodeMirror 实例
     const [viewMode, setViewMode] = createSignal<ViewMode>('edit');
-    const [, setMarkdownContent] = createSignal<string>('');
+    const [markdownContent, setMarkdownContent] = createSignal<string>('');
     const [currentFilePath, setCurrentFilePath] = createSignal<string | null>(props.initialFilePath || null);
     const [isModified, setIsModified] = createSignal<boolean>(false);
     const [showExportMenu, setShowExportMenu] = createSignal<boolean>(false);
@@ -27,12 +28,277 @@ const Editor: Component<EditorProps> = (props) => {
     const [exportProgress, setExportProgress] = createSignal<number>(0);
     const [exportMessage, setExportMessage] = createSignal<string>('');
     let progressBarElement: HTMLDivElement | undefined;
+    let lastScrollRatio: { edit: number; preview: number } = { edit: 0, preview: 0 };
+
+    const findScrollableContainer = (element: HTMLElement | null) => {
+        let current: HTMLElement | null = element;
+        while (current) {
+            const style = window.getComputedStyle(current);
+            if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+                style.overflow === 'auto' || style.overflow === 'scroll') {
+                return current;
+            }
+            current = current.parentElement;
+        }
+        return element;
+    };
+
+    const getCodeMirrorInstance = () => {
+        if (cmInstance && typeof cmInstance.getCursor === 'function') {
+            return cmInstance;
+        }
+        const editorElement = editorContainer?.querySelector('.CodeMirror');
+        if (editorElement) {
+            return (editorElement as any).CodeMirror;
+        }
+        if (cherryInstance) {
+            const instance = cherryInstance as any;
+            if (instance.editor?.codemirror) return instance.editor.codemirror;
+            const editor = instance.getEditor?.();
+            if (editor?.codemirror) return editor.codemirror;
+            if (instance.codemirror) return instance.codemirror;
+        }
+        return null;
+    };
+
+    const getCurrentCursorLine = () => {
+        const cm = getCodeMirrorInstance();
+        if (!cm || typeof cm.getCursor !== 'function') return 1;
+        const cursor = cm.getCursor();
+        return Math.max(1, (cursor?.line ?? 0) + 1);
+    };
+
+    const getMarkdownHeadings = () => {
+        const content = markdownContent();
+        if (!content) return [];
+        const lines = content.split('\n');
+        const headings: Array<{ lineNumber: number; text: string; level: number }> = [];
+        lines.forEach((line, index) => {
+            const match = line.trim().match(/^(#{1,6})\s+(.+)$/);
+            if (match) {
+                headings.push({
+                    lineNumber: index + 1,
+                    text: match[2].trim(),
+                    level: match[1].length,
+                });
+            }
+        });
+        return headings;
+    };
+
+    const findHeadingFromLine = (lineNumber: number) => {
+        const content = markdownContent();
+        if (!content) return null;
+        const lines = content.split('\n');
+        const maxIndex = Math.min(lines.length, Math.max(1, lineNumber));
+        for (let i = maxIndex - 1; i >= 0; i -= 1) {
+            const match = lines[i].match(/^(#{1,6})\s+(.*)$/);
+            if (match) {
+                return { text: match[2].trim(), line: i + 1 };
+            }
+        }
+        return null;
+    };
+
+    const findHeadingLineByText = (headingText: string) => {
+        const content = markdownContent();
+        if (!content || !headingText) return null;
+        const lines = content.split('\n');
+        for (let i = 0; i < lines.length; i += 1) {
+            const match = lines[i].match(/^(#{1,6})\s+(.*)$/);
+            if (match) {
+                const text = match[2].trim();
+                if (text === headingText || text.includes(headingText) || headingText.includes(text)) {
+                    return i + 1;
+                }
+            }
+        }
+        return null;
+    };
+
+    const getNearestPreviewHeadingText = () => {
+        const previewContainer = getScrollContainer('preview');
+        if (!previewContainer) return null;
+        const headings = previewContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        if (headings.length === 0) return null;
+        const containerRect = previewContainer.getBoundingClientRect();
+        let bestText: string | null = null;
+        let bestDistance: number | null = null;
+        headings.forEach((heading) => {
+            const rect = heading.getBoundingClientRect();
+            const distance = Math.abs(rect.top - containerRect.top);
+            const text = heading.textContent?.trim() || '';
+            if (!text) return;
+            if (bestDistance === null || distance < bestDistance) {
+                bestText = text;
+                bestDistance = distance;
+            }
+        });
+        return bestText;
+    };
+
+    const getScrollContainer = (mode: ViewMode) => {
+        if (!editorContainer) return null;
+        if (mode === 'edit') {
+            return editorContainer.querySelector('.CodeMirror-scroll') as HTMLElement | null;
+        }
+        const previewElement =
+            editorContainer.querySelector('.cherry-editor__preview') ||
+            editorContainer.querySelector('.cherry-previewer') ||
+            editorContainer.querySelector('.cherry-markdown') ||
+            editorContainer.querySelector('[class*="preview"]');
+        return findScrollableContainer(previewElement as HTMLElement | null);
+    };
+
+    const tryScrollEditToLine = (lineNumber: number) => {
+        const cm = getCodeMirrorInstance();
+        if (!cm || typeof cm.setCursor !== 'function') return false;
+        const line = Math.max(0, lineNumber - 1);
+        cm.setCursor(line, 0);
+        if (typeof cm.scrollIntoView === 'function') {
+            cm.scrollIntoView({ line, ch: 0 }, 200);
+        }
+        if (typeof cm.focus === 'function') {
+            cm.focus();
+        }
+        return true;
+    };
+
+    const captureScrollRatio = (mode: ViewMode) => {
+        const container = getScrollContainer(mode);
+        if (!container) return 0;
+        const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight);
+        return Math.min(1, Math.max(0, container.scrollTop / maxScroll));
+    };
+
+    const restoreScrollRatio = (mode: ViewMode, ratio: number) => {
+        const container = getScrollContainer(mode);
+        if (!container) return;
+        const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+        container.scrollTop = Math.round(maxScroll * ratio);
+    };
+
+    const switchViewMode = (nextMode: ViewMode, options?: { preservePosition?: boolean }) => {
+        const currentMode = viewMode();
+        if (currentMode === nextMode) return;
+        const preservePosition = options?.preservePosition === true;
+        let headingInfo: { text: string; line: number } | null = null;
+        let previewHeadingText: string | null = null;
+        const ratio = captureScrollRatio(currentMode);
+        // 无论是否同步位置，都记录当前模式的滚动位置，保持“各自独立”
+        lastScrollRatio[currentMode] = ratio;
+        if (preservePosition) {
+            const cursorLine = currentMode === 'edit' ? getCurrentCursorLine() : null;
+            headingInfo = currentMode === 'edit' && cursorLine ? findHeadingFromLine(cursorLine) : null;
+            previewHeadingText = currentMode === 'preview' ? getNearestPreviewHeadingText() : null;
+        }
+        setViewMode(nextMode);
+        updateEditorMode(nextMode);
+        // 多次尝试同步位置，避免切换后又被重置到顶部
+        const delays = [120, 300, 600];
+        delays.forEach((delay) => {
+            setTimeout(() => {
+            if (nextMode === 'preview') {
+                    fixPreviewImages();
+                    if (preservePosition && headingInfo?.text) {
+                        const scrolled = scrollToHeadingInPreviewOnce(headingInfo.text, headingInfo.line);
+                        if (!scrolled && preservePosition) {
+                        restoreScrollRatio(nextMode, ratio);
+                        }
+                } else if (!preservePosition) {
+                    // 仅恢复预览自身上次位置，不做跨模式对齐
+                    restoreScrollRatio(nextMode, lastScrollRatio[nextMode]);
+                } else {
+                    restoreScrollRatio(nextMode, ratio);
+                    }
+                } else if (nextMode === 'edit') {
+                    if (preservePosition && previewHeadingText) {
+                        const line = findHeadingLineByText(previewHeadingText) || 1;
+                        const moved = tryScrollEditToLine(line);
+                        if (!moved && preservePosition) {
+                        restoreScrollRatio(nextMode, ratio);
+                        }
+                } else if (!preservePosition) {
+                    restoreScrollRatio(nextMode, lastScrollRatio[nextMode]);
+                } else {
+                    restoreScrollRatio(nextMode, ratio);
+                    }
+                }
+            }, delay);
+        });
+    };
 
     // 切换显示模式（只在源码和预览之间切换）
     const toggleViewMode = () => {
         const newMode: ViewMode = viewMode() === 'edit' ? 'preview' : 'edit';
-        setViewMode(newMode);
-        updateEditorMode(newMode);
+        switchViewMode(newMode);
+    };
+
+    // 将本地图片路径转换为可在 Tauri WebView 中访问的资源地址
+    const resolveLocalImageSrc = (src: string, baseFilePath: string | null) => {
+        const trimmedSrc = src.trim();
+        if (!trimmedSrc) return null;
+
+        // 远程或已处理的 URL 保持不变
+        if (
+            trimmedSrc.startsWith('http://') ||
+            trimmedSrc.startsWith('https://') ||
+            trimmedSrc.startsWith('data:') ||
+            trimmedSrc.startsWith('blob:') ||
+            trimmedSrc.startsWith('asset:') ||
+            trimmedSrc.startsWith('tauri:')
+        ) {
+            return null;
+        }
+
+        const isWindowsPath = /^[a-zA-Z]:[\\/]/.test(trimmedSrc);
+        const isUnixAbsPath = trimmedSrc.startsWith('/');
+        const isFileUrl = trimmedSrc.startsWith('file://');
+
+        let resolvedPath = trimmedSrc;
+
+        if (isFileUrl) {
+            // file:///C:/path -> C:/path, file:///home -> /home
+            resolvedPath = decodeURIComponent(trimmedSrc.replace(/^file:\/+/, ''));
+        } else if (!isWindowsPath && !isUnixAbsPath) {
+            // 相对路径需要基于当前文件目录解析
+            if (!baseFilePath) return null;
+            const separator = /^[a-zA-Z]:[\\/]/.test(baseFilePath) ? '\\' : '/';
+            const baseDir = baseFilePath.replace(/[\\/][^\\/]*$/, '');
+            const cleanedBase = baseDir.replace(/[\\/]+$/, '');
+            const cleanedSrc = trimmedSrc.replace(/^[\\/]+/, '');
+            resolvedPath = `${cleanedBase}${separator}${cleanedSrc}`;
+        }
+
+        if (!resolvedPath) return null;
+        return convertFileSrc(resolvedPath);
+    };
+
+    const fixPreviewImages = () => {
+        if (!editorContainer || viewMode() !== 'preview') return;
+        const baseFilePath = currentFilePath();
+
+        // 延迟到预览渲染完成后处理
+        setTimeout(() => {
+            const previewElement =
+                editorContainer?.querySelector('.cherry-editor__preview') ||
+                editorContainer?.querySelector('.cherry-previewer') ||
+                editorContainer?.querySelector('.cherry-markdown') ||
+                editorContainer?.querySelector('[class*="preview"]');
+
+            if (!previewElement) return;
+
+            const images = previewElement.querySelectorAll('img');
+            images.forEach((img) => {
+                const element = img as HTMLImageElement;
+                const originalSrc = element.getAttribute('data-original-src') || element.getAttribute('src') || '';
+                const convertedSrc = resolveLocalImageSrc(originalSrc, baseFilePath);
+                if (convertedSrc && element.src !== convertedSrc) {
+                    element.setAttribute('data-original-src', originalSrc);
+                    element.src = convertedSrc;
+                }
+            });
+        }, 50);
     };
 
     // 更新编辑器模式
@@ -135,8 +401,7 @@ const Editor: Component<EditorProps> = (props) => {
                 
                 // 切换到预览模式
                 setTimeout(() => {
-                    setViewMode('preview');
-                    updateEditorMode('preview');
+                    switchViewMode('preview', { preservePosition: false });
                 }, 200);
             } else {
                 console.error('编辑器实例不存在，无法加载文件内容');
@@ -164,8 +429,7 @@ const Editor: Component<EditorProps> = (props) => {
                     (cherryInstance as any).setMarkdown(result.content);
                     // 切换到预览模式
                     setTimeout(() => {
-                        setViewMode('preview');
-                        updateEditorMode('preview');
+                        switchViewMode('preview', { preservePosition: false });
                     }, 100);
                 }
             }
@@ -249,8 +513,7 @@ const Editor: Component<EditorProps> = (props) => {
             if (format === 'pdf' || format === 'png') {
                 if (viewMode() !== 'preview') {
                     setExportMessage('正在切换到预览模式...');
-                    setViewMode('preview');
-                    updateEditorMode('preview');
+                    switchViewMode('preview', { preservePosition: false });
                     // 等待预览渲染完成
                     await new Promise(resolve => setTimeout(resolve, 800));
                 }
@@ -558,6 +821,192 @@ const Editor: Component<EditorProps> = (props) => {
         setTimeout(() => tryJump(), 150);
     };
 
+    const scrollToHeadingInPreviewOnce = (headingText: string | undefined, lineNumber: number) => {
+        if (!editorContainer) return false;
+        // 查找预览区域 - 尝试多种选择器
+        let previewElement: Element | null = null;
+
+        // 方式1: 查找 .cherry-editor__preview
+        if (editorContainer) {
+            previewElement = editorContainer.querySelector('.cherry-editor__preview');
+        }
+
+        // 方式2: 查找 .cherry-previewer（实际内容容器）
+        if (!previewElement && editorContainer) {
+            previewElement = editorContainer.querySelector('.cherry-previewer');
+        }
+
+        // 方式3: 查找包含 markdown 内容的容器
+        if (!previewElement && editorContainer) {
+            previewElement = editorContainer.querySelector('.cherry-markdown');
+        }
+
+        // 方式4: 查找任何包含 preview 的类
+        if (!previewElement && editorContainer) {
+            previewElement = editorContainer.querySelector('[class*="preview"]');
+        }
+
+        // 方式5: 在整个容器中查找
+        if (!previewElement && editorContainer) {
+            previewElement = editorContainer;
+        }
+
+        if (!previewElement) {
+            return false;
+        }
+
+        // 查找所有标题元素 (h1-h6)
+        const headings = previewElement.querySelectorAll('h1, h2, h3, h4, h5, h6');
+
+        if (headings.length === 0) {
+            return false;
+        }
+
+        // 优先按行号匹配标题索引（更稳定，避免同名标题误匹配）
+        if (lineNumber > 0) {
+            const markdownHeadings = getMarkdownHeadings();
+            const targetIndex = markdownHeadings.findIndex(h => h.lineNumber === lineNumber);
+            if (targetIndex >= 0 && targetIndex < headings.length) {
+                const heading = headings[targetIndex];
+                let scrollContainer: Element | null = heading;
+                while (scrollContainer && scrollContainer !== previewElement) {
+                    const style = window.getComputedStyle(scrollContainer);
+                    if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+                        style.overflow === 'auto' || style.overflow === 'scroll') {
+                        break;
+                    }
+                    scrollContainer = scrollContainer.parentElement;
+                }
+                const headingRect = heading.getBoundingClientRect();
+                if (scrollContainer && scrollContainer instanceof HTMLElement) {
+                    const containerRect = scrollContainer.getBoundingClientRect();
+                    const scrollTop = scrollContainer.scrollTop + headingRect.top - containerRect.top - 100;
+                    scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                } else if (previewElement && previewElement instanceof HTMLElement) {
+                    const containerRect = previewElement.getBoundingClientRect();
+                    const scrollTop = previewElement.scrollTop + headingRect.top - containerRect.top - 100;
+                    previewElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                } else {
+                    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                heading.classList.add('heading-highlight');
+                setTimeout(() => {
+                    heading.classList.remove('heading-highlight');
+                }, 1000);
+                return true;
+            }
+        }
+
+        // 如果提供了标题文本，优先使用文本匹配
+        if (headingText) {
+            for (let i = 0; i < headings.length; i++) {
+                const heading = headings[i];
+                const text = heading.textContent?.trim();
+
+                // 精确匹配或包含匹配
+                if (text === headingText || text?.includes(headingText) || headingText.includes(text || '')) {
+                    // 找到可滚动的父容器
+                    let scrollContainer: Element | null = heading;
+
+                    // 向上查找可滚动的容器
+                    while (scrollContainer && scrollContainer !== previewElement) {
+                        const style = window.getComputedStyle(scrollContainer);
+                        if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+                            style.overflow === 'auto' || style.overflow === 'scroll') {
+                            break;
+                        }
+                        scrollContainer = scrollContainer.parentElement;
+                    }
+
+                    // 计算标题相对于滚动容器的位置
+                    const headingRect = heading.getBoundingClientRect();
+
+                    // 优先使用找到的滚动容器
+                    if (scrollContainer && scrollContainer instanceof HTMLElement) {
+                        const containerRect = scrollContainer.getBoundingClientRect();
+                        const scrollTop = scrollContainer.scrollTop + headingRect.top - containerRect.top - 100;
+                        scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                    } else if (previewElement && previewElement instanceof HTMLElement) {
+                        // 使用预览元素作为滚动容器
+                        const containerRect = previewElement.getBoundingClientRect();
+                        const scrollTop = previewElement.scrollTop + headingRect.top - containerRect.top - 100;
+                        previewElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                    } else {
+                        // 使用 scrollIntoView 作为后备方案
+                        heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+
+                    // 高亮标题
+                    heading.classList.add('heading-highlight');
+                    setTimeout(() => {
+                        heading.classList.remove('heading-highlight');
+                    }, 1000);
+
+                    return true;
+                }
+            }
+        }
+
+        // 如果文本匹配失败，尝试根据行号提取标题文本
+        const markdownContent = cherryInstance ? (cherryInstance as any).getMarkdown?.() : '';
+        if (markdownContent) {
+            const lines = markdownContent.split('\n');
+            const targetLine = lines[lineNumber - 1];
+
+            if (targetLine && targetLine.trim().startsWith('#')) {
+                // 提取标题文本
+                const extractedText = targetLine.replace(/^#+\s*/, '').trim();
+
+                // 再次尝试匹配
+                for (let i = 0; i < headings.length; i++) {
+                    const heading = headings[i];
+                    const text = heading.textContent?.trim();
+
+                    if (text === extractedText || text?.includes(extractedText)) {
+                        // 找到可滚动的父容器
+                        let scrollContainer: Element | null = heading;
+
+                        while (scrollContainer && scrollContainer !== previewElement) {
+                            const style = window.getComputedStyle(scrollContainer);
+                            if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+                                style.overflow === 'auto' || style.overflow === 'scroll') {
+                                break;
+                            }
+                            scrollContainer = scrollContainer.parentElement;
+                        }
+
+                        // 计算标题相对于滚动容器的位置
+                        const headingRect = heading.getBoundingClientRect();
+
+                        // 优先使用找到的滚动容器
+                        if (scrollContainer && scrollContainer instanceof HTMLElement) {
+                            const containerRect = scrollContainer.getBoundingClientRect();
+                            const scrollTop = scrollContainer.scrollTop + headingRect.top - containerRect.top - 100;
+                            scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                        } else if (previewElement && previewElement instanceof HTMLElement) {
+                            // 使用预览元素作为滚动容器
+                            const containerRect = previewElement.getBoundingClientRect();
+                            const scrollTop = previewElement.scrollTop + headingRect.top - containerRect.top - 100;
+                            previewElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                        } else {
+                            // 使用 scrollIntoView 作为后备方案
+                            heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+
+                        heading.classList.add('heading-highlight');
+                        setTimeout(() => {
+                            heading.classList.remove('heading-highlight');
+                        }, 1000);
+
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    };
+
     // 在预览模式中滚动到指定标题
     const scrollToHeadingInPreview = (headingText: string | undefined, lineNumber: number) => {
         if (!editorContainer) return;
@@ -570,160 +1019,8 @@ const Editor: Component<EditorProps> = (props) => {
             }
 
             try {
-                // 查找预览区域 - 尝试多种选择器
-                let previewElement: Element | null = null;
-
-                // 方式1: 查找 .cherry-editor__preview
-                if (editorContainer) {
-                    previewElement = editorContainer.querySelector('.cherry-editor__preview');
-                }
-
-                // 方式2: 查找 .cherry-previewer（实际内容容器）
-                if (!previewElement && editorContainer) {
-                    previewElement = editorContainer.querySelector('.cherry-previewer');
-                }
-
-                // 方式3: 查找包含 markdown 内容的容器
-                if (!previewElement && editorContainer) {
-                    previewElement = editorContainer.querySelector('.cherry-markdown');
-                }
-
-                // 方式4: 查找任何包含 preview 的类
-                if (!previewElement && editorContainer) {
-                    previewElement = editorContainer.querySelector('[class*="preview"]');
-                }
-
-                // 方式5: 在整个容器中查找
-                if (!previewElement && editorContainer) {
-                    previewElement = editorContainer;
-                }
-
-                if (!previewElement) {
-                    console.warn(`尝试 ${attempts + 1}: 未找到预览区域`);
-                    setTimeout(() => tryScroll(attempts + 1), 100);
-                    return;
-                }
-
-                // 查找所有标题元素 (h1-h6)
-                const headings = previewElement.querySelectorAll('h1, h2, h3, h4, h5, h6');
-
-                if (headings.length === 0) {
-                    console.warn(`尝试 ${attempts + 1}: 未找到标题元素，找到的预览元素:`, previewElement.className);
-                    setTimeout(() => tryScroll(attempts + 1), 100);
-                    return;
-                }
-
-                console.log(`找到 ${headings.length} 个标题元素`);
-
-                // 如果提供了标题文本，优先使用文本匹配
-                if (headingText) {
-                    for (let i = 0; i < headings.length; i++) {
-                        const heading = headings[i];
-                        const text = heading.textContent?.trim();
-
-                        // 精确匹配或包含匹配
-                        if (text === headingText || text?.includes(headingText) || headingText.includes(text || '')) {
-                            // 找到可滚动的父容器
-                            let scrollContainer: Element | null = heading;
-
-                            // 向上查找可滚动的容器
-                            while (scrollContainer && scrollContainer !== previewElement) {
-                                const style = window.getComputedStyle(scrollContainer);
-                                if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
-                                    style.overflow === 'auto' || style.overflow === 'scroll') {
-                                    break;
-                                }
-                                scrollContainer = scrollContainer.parentElement;
-                            }
-
-                            // 计算标题相对于滚动容器的位置
-                            const headingRect = heading.getBoundingClientRect();
-
-                            // 优先使用找到的滚动容器
-                            if (scrollContainer && scrollContainer instanceof HTMLElement) {
-                                const containerRect = scrollContainer.getBoundingClientRect();
-                                const scrollTop = scrollContainer.scrollTop + headingRect.top - containerRect.top - 100;
-                                scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                            } else if (previewElement && previewElement instanceof HTMLElement) {
-                                // 使用预览元素作为滚动容器
-                                const containerRect = previewElement.getBoundingClientRect();
-                                const scrollTop = previewElement.scrollTop + headingRect.top - containerRect.top - 100;
-                                previewElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                            } else {
-                                // 使用 scrollIntoView 作为后备方案
-                                heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            }
-
-                            // 高亮标题
-                            heading.classList.add('heading-highlight');
-                            setTimeout(() => {
-                                heading.classList.remove('heading-highlight');
-                            }, 1000);
-
-                            console.log(`成功滚动到标题: ${headingText}`);
-                            return;
-                        }
-                    }
-                }
-
-                // 如果文本匹配失败，尝试根据行号提取标题文本
-                const markdownContent = cherryInstance ? (cherryInstance as any).getMarkdown?.() : '';
-                if (markdownContent) {
-                    const lines = markdownContent.split('\n');
-                    const targetLine = lines[lineNumber - 1];
-
-                    if (targetLine && targetLine.trim().startsWith('#')) {
-                        // 提取标题文本
-                        const extractedText = targetLine.replace(/^#+\s*/, '').trim();
-
-                        // 再次尝试匹配
-                        for (let i = 0; i < headings.length; i++) {
-                            const heading = headings[i];
-                            const text = heading.textContent?.trim();
-
-                            if (text === extractedText || text?.includes(extractedText)) {
-                                // 找到可滚动的父容器
-                                let scrollContainer: Element | null = heading;
-
-                                while (scrollContainer && scrollContainer !== previewElement) {
-                                    const style = window.getComputedStyle(scrollContainer);
-                                    if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
-                                        style.overflow === 'auto' || style.overflow === 'scroll') {
-                                        break;
-                                    }
-                                    scrollContainer = scrollContainer.parentElement;
-                                }
-
-                                // 计算标题相对于滚动容器的位置
-                                const headingRect = heading.getBoundingClientRect();
-
-                                // 优先使用找到的滚动容器
-                                if (scrollContainer && scrollContainer instanceof HTMLElement) {
-                                    const containerRect = scrollContainer.getBoundingClientRect();
-                                    const scrollTop = scrollContainer.scrollTop + headingRect.top - containerRect.top - 100;
-                                    scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                                } else if (previewElement && previewElement instanceof HTMLElement) {
-                                    // 使用预览元素作为滚动容器
-                                    const containerRect = previewElement.getBoundingClientRect();
-                                    const scrollTop = previewElement.scrollTop + headingRect.top - containerRect.top - 100;
-                                    previewElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                                } else {
-                                    // 使用 scrollIntoView 作为后备方案
-                                    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }
-
-                                heading.classList.add('heading-highlight');
-                                setTimeout(() => {
-                                    heading.classList.remove('heading-highlight');
-                                }, 1000);
-
-                                console.log(`成功滚动到标题: ${extractedText}`);
-                                return;
-                            }
-                        }
-                    }
-                }
-
+                const ok = scrollToHeadingInPreviewOnce(headingText, lineNumber);
+                if (ok) return;
                 console.warn(`尝试 ${attempts + 1}: 未找到对应的标题元素，标题文本: ${headingText}`);
                 setTimeout(() => tryScroll(attempts + 1), 100);
             } catch (error) {
@@ -755,6 +1052,15 @@ const Editor: Component<EditorProps> = (props) => {
         if (cherryInstance) {
             cherryInstance.destroy();
             cherryInstance = null;
+        }
+    });
+
+    createEffect(() => {
+        // 当内容、文件路径或模式切换时，刷新预览图片路径
+        markdownContent();
+        currentFilePath();
+        if (viewMode() === 'preview') {
+            fixPreviewImages();
         }
     });
 
@@ -841,14 +1147,14 @@ const Editor: Component<EditorProps> = (props) => {
                         <span class="mode-label">显示模式:</span>
                         <button
                             class={`mode-btn ${viewMode() === 'edit' ? 'active' : ''}`}
-                            onClick={() => { setViewMode('edit'); updateEditorMode('edit'); }}
+                            onClick={() => switchViewMode('edit')}
                             title="源码模式 (Ctrl+/)"
                         >
                             源码
                         </button>
                         <button
                             class={`mode-btn ${viewMode() === 'preview' ? 'active' : ''}`}
-                            onClick={() => { setViewMode('preview'); updateEditorMode('preview'); }}
+                            onClick={() => switchViewMode('preview')}
                             title="预览模式 (Ctrl+/)"
                         >
                             预览
