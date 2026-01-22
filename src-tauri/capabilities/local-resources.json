@@ -1,0 +1,28 @@
+{
+  "identifier": "local-resources",
+  "description": "Allow access to local file resources",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    "fs:read-all",
+    "fs:write-all",
+    {
+      "identifier": "fs:scope",
+      "allow": ["**"]
+    },
+    {
+      "identifier": "core:window:allow-set-csp",
+      "allow": true
+    },
+    {
+      "identifier": "core:window:allow-set-security-csp",
+      "allow": true
+    }
+  ]
+}
+
+
+
