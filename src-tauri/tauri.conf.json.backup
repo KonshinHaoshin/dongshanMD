@@ -21,7 +21,8 @@
         "category": "Utility",
         "shortDescription": "A markdown editor built with Tauri and SolidJS",
         "longDescription": "",
-        "fileAssociations": [{
+        "fileAssociations": [
+            {
                 "ext": ["md"],
                 "description": "Markdown Document",
                 "mimeType": "text/markdown"
