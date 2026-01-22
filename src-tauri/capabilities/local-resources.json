@@ -12,14 +12,6 @@
     {
       "identifier": "fs:scope",
       "allow": ["**"]
-    },
-    {
-      "identifier": "core:window:allow-set-csp",
-      "allow": true
-    },
-    {
-      "identifier": "core:window:allow-set-security-csp",
-      "allow": true
     }
   ]
 }
