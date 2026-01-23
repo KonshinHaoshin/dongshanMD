@@ -5,6 +5,7 @@ import './Editor.css';
 import { openFile, saveFile, saveToFile } from '../utils/fileOperations';
 import { exportFile, ExportProgressCallback } from '../utils/exportUtils';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { mkdir, writeFile } from '@tauri-apps/plugin-fs';
 
 type ViewMode = 'edit' | 'preview';
 
@@ -27,6 +28,10 @@ const Editor: Component<EditorProps> = (props) => {
     const [isExporting, setIsExporting] = createSignal<boolean>(false);
     const [exportProgress, setExportProgress] = createSignal<number>(0);
     const [exportMessage, setExportMessage] = createSignal<string>('');
+    const [showSettings, setShowSettings] = createSignal<boolean>(false);
+    const [imagePasteMode, setImagePasteMode] = createSignal<'base64' | 'relative'>(
+        (localStorage.getItem('imagePasteMode') as 'base64' | 'relative') || 'base64'
+    );
     let progressBarElement: HTMLDivElement | undefined;
     let lastScrollRatio: { edit: number; preview: number } = { edit: 0, preview: 0 };
 
@@ -59,6 +64,102 @@ const Editor: Component<EditorProps> = (props) => {
             if (instance.codemirror) return instance.codemirror;
         }
         return null;
+    };
+
+    const insertMarkdownAtCursor = (markdown: string) => {
+        const cm = getCodeMirrorInstance();
+        if (cm && typeof cm.replaceSelection === 'function') {
+            cm.replaceSelection(markdown);
+            return;
+        }
+        if (cherryInstance && (cherryInstance as any).insert) {
+            (cherryInstance as any).insert(markdown);
+        }
+    };
+
+    const getFileBaseName = (filePath: string) => {
+        const parts = filePath.split(/[/\\]/);
+        const name = parts[parts.length - 1] || 'document';
+        return name.replace(/\.[^/.]+$/, '') || 'document';
+    };
+
+    const getFileDir = (filePath: string) => filePath.replace(/[\\/][^\\/]*$/, '');
+
+    const getImageFileName = (file: File) => {
+        const original = file.name && file.name !== 'image.png' ? file.name : '';
+        if (original) return original;
+        const ext = file.type ? file.type.split('/')[1] : 'png';
+        const safeExt = ext ? ext.replace(/[^a-z0-9]+/gi, '') : 'png';
+        return `image-${Date.now()}.${safeExt || 'png'}`;
+    };
+
+    const handleImageInsert = async (file: File) => {
+        if (imagePasteMode() === 'base64') {
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+            });
+            insertMarkdownAtCursor(`![${file.name || 'image'}](${dataUrl})`);
+            return;
+        }
+
+        const mdPath = currentFilePath();
+        if (!mdPath) {
+            // 未保存的文档无法生成相对路径，退回 base64
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+            });
+            insertMarkdownAtCursor(`![${file.name || 'image'}](${dataUrl})`);
+            return;
+        }
+
+        const baseDir = getFileDir(mdPath);
+        const baseName = getFileBaseName(mdPath);
+        const folderPath = `${baseDir}\\${baseName}`;
+        await mkdir(folderPath, { recursive: true });
+
+        const fileName = getImageFileName(file);
+        const targetPath = `${folderPath}\\${fileName}`;
+        const buffer = new Uint8Array(await file.arrayBuffer());
+        await writeFile(targetPath, buffer);
+
+        const relativePath = `${baseName}/${fileName}`.replace(/\\/g, '/');
+        insertMarkdownAtCursor(`![${file.name || fileName}](${relativePath})`);
+    };
+
+    const handlePasteEvent = async (event: ClipboardEvent) => {
+        if (viewMode() !== 'edit') return;
+        const items = event.clipboardData?.items;
+        if (!items) return;
+        const imageItem = Array.from(items).find(item => item.type.startsWith('image/'));
+        if (!imageItem) return;
+        const file = imageItem.getAsFile();
+        if (!file) return;
+        event.preventDefault();
+        try {
+            await handleImageInsert(file);
+        } catch (error) {
+            console.error('粘贴图片失败:', error);
+        }
+    };
+
+    const handleDropEvent = async (event: DragEvent) => {
+        if (viewMode() !== 'edit') return;
+        const files = Array.from(event.dataTransfer?.files || []).filter(file => file.type.startsWith('image/'));
+        if (files.length === 0) return;
+        event.preventDefault();
+        try {
+            for (const file of files) {
+                await handleImageInsert(file);
+            }
+        } catch (error) {
+            console.error('拖拽图片失败:', error);
+        }
     };
 
     const getCurrentCursorLine = () => {
@@ -565,6 +666,8 @@ const Editor: Component<EditorProps> = (props) => {
         }
     };
 
+    const closeSettings = () => setShowSettings(false);
+
     onMount(() => {
         if (!editorContainer) return;
 
@@ -573,6 +676,13 @@ const Editor: Component<EditorProps> = (props) => {
 
         // 添加点击外部关闭菜单的监听
         document.addEventListener('click', handleClickOutside);
+        editorContainer.addEventListener('paste', handlePasteEvent);
+        editorContainer.addEventListener('drop', handleDropEvent);
+        editorContainer.addEventListener('dragover', (e) => {
+            if (viewMode() === 'edit') {
+                e.preventDefault();
+            }
+        });
 
         const options: any = {
             id: 'editor',
@@ -1049,6 +1159,10 @@ const Editor: Component<EditorProps> = (props) => {
     onCleanup(() => {
         window.removeEventListener('keydown', handleKeyDown);
         document.removeEventListener('click', handleClickOutside);
+        if (editorContainer) {
+            editorContainer.removeEventListener('paste', handlePasteEvent);
+            editorContainer.removeEventListener('drop', handleDropEvent);
+        }
         if (cherryInstance) {
             cherryInstance.destroy();
             cherryInstance = null;
@@ -1160,6 +1274,13 @@ const Editor: Component<EditorProps> = (props) => {
                             预览
                         </button>
                     </div>
+                    <button
+                        class="file-btn"
+                        onClick={() => setShowSettings(true)}
+                        title="设置"
+                    >
+                        ⚙ 设置
+                    </button>
                 </div>
             </div>
             <div ref={editorContainer} id="editor" class="cherry-editor" />
@@ -1175,6 +1296,31 @@ const Editor: Component<EditorProps> = (props) => {
                         </div>
                         <div class="export-progress-message">{exportMessage()}</div>
                         <div class="export-progress-percent">{exportProgress()}%</div>
+                    </div>
+                </div>
+            )}
+            {showSettings() && (
+                <div class="settings-overlay" onClick={closeSettings}>
+                    <div class="settings-dialog" onClick={(e) => e.stopPropagation()}>
+                        <div class="settings-title">设置</div>
+                        <div class="settings-row">
+                            <div class="settings-label">图片粘贴方式</div>
+                            <select
+                                class="settings-select"
+                                value={imagePasteMode()}
+                                onChange={(e) => {
+                                    const value = (e.currentTarget.value as 'base64' | 'relative') || 'base64';
+                                    setImagePasteMode(value);
+                                    localStorage.setItem('imagePasteMode', value);
+                                }}
+                            >
+                                <option value="base64">Base64（嵌入）</option>
+                                <option value="relative">相对路径（保存文件）</option>
+                            </select>
+                        </div>
+                        <div class="settings-actions">
+                            <button class="file-btn" onClick={closeSettings}>关闭</button>
+                        </div>
                     </div>
                 </div>
             )}
