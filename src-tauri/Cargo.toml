@@ -1,6 +1,6 @@
 [package]
 name = "dongshan-md"
-version = "1.0.2"
+version = "1.1.0"
 description = "A markdown editor built with Tauri and SolidJS"
 authors = ["dongshanrandeng"]
 license = "MIT"
@@ -20,7 +20,7 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset"] }
+tauri = { version = "2", features = ["protocol-asset", "devtools"] }
 tauri-plugin-shell = { version = "2", features = [] }
 tauri-plugin-dialog = { version = "2", features = [] }
 tauri-plugin-fs = { version = "2", features = [] }

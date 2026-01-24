@@ -1,9 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-// main.rs 仅用于桌面平台
-// 注意：main.rs 和 lib.rs 在不同的目标中（bin vs lib），
-// 但为了避免命令定义冲突，我们使用共享的 commands 模块
 mod app;
 mod commands;
 
@@ -35,6 +32,13 @@ fn main() {
             } else {
                 println!("未找到支持的文件类型");
             }
+
+            // 生产环境下自动打开 DevTools（方便排查问题）
+            // if !cfg!(debug_assertions) {
+            //     if let Some(window) = app.get_webview_window("main") {
+            //         window.open_devtools();
+            //     }
+            // }
             
             Ok(())
         })

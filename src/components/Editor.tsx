@@ -340,6 +340,14 @@ const Editor: Component<EditorProps> = (props) => {
         const trimmedSrc = src.trim();
         if (!trimmedSrc) return null;
 
+        const decodedSrc = (() => {
+            try {
+                return decodeURIComponent(trimmedSrc);
+            } catch {
+                return trimmedSrc;
+            }
+        })();
+
         // 远程或已处理的 URL 保持不变
         if (
             trimmedSrc.startsWith('http://') ||
@@ -347,16 +355,56 @@ const Editor: Component<EditorProps> = (props) => {
             trimmedSrc.startsWith('data:') ||
             trimmedSrc.startsWith('blob:') ||
             trimmedSrc.startsWith('asset:') ||
-            trimmedSrc.startsWith('tauri:')
+            trimmedSrc.startsWith('tauri:') ||
+            trimmedSrc.startsWith('app:')
         ) {
+            // 但如果是应用自身 URL（如 tauri.localhost/localhost/tauri://localhost/app://localhost），尝试解析为本地路径
+            if (
+                trimmedSrc.startsWith('http://') ||
+                trimmedSrc.startsWith('https://') ||
+                trimmedSrc.startsWith('tauri://') ||
+                trimmedSrc.startsWith('app://')
+            ) {
+                try {
+                    const url = new URL(trimmedSrc);
+                    const host = url.hostname;
+                    const isAppScheme = url.protocol === 'tauri:' || url.protocol === 'app:';
+                    const isAppHost = host === 'tauri.localhost' || host === 'localhost' || host === '';
+                    if (isAppScheme || isAppHost) {
+                        let path = decodeURIComponent(url.pathname);
+                        // 处理 /C:/path 这种形式
+                        if (path.startsWith('/') && /^[a-zA-Z]:[\\/]/.test(path.slice(1))) {
+                            path = path.slice(1);
+                        }
+                        // 绝对 Windows 路径
+                        if (/^[a-zA-Z]:[\\/]/.test(path)) {
+                            return convertFileSrc(path);
+                        }
+                        // 绝对 Unix 路径
+                        if (path.startsWith('/')) {
+                            return convertFileSrc(path);
+                        }
+                        // 作为相对路径处理
+                        if (baseFilePath) {
+                            const separator = /^[a-zA-Z]:[\\/]/.test(baseFilePath) ? '\\' : '/';
+                            const baseDir = baseFilePath.replace(/[\\/][^\\/]*$/, '');
+                            const cleanedBase = baseDir.replace(/[\\/]+$/, '');
+                            const cleanedSrc = path.replace(/^[\\/]+/, '');
+                            return convertFileSrc(`${cleanedBase}${separator}${cleanedSrc}`);
+                        }
+                    }
+                } catch {
+                    // ignore
+                }
+            }
             return null;
         }
 
-        const isWindowsPath = /^[a-zA-Z]:[\\/]/.test(trimmedSrc);
-        const isUnixAbsPath = trimmedSrc.startsWith('/');
+        const isWindowsPath = /^[a-zA-Z]:[\\/]/.test(trimmedSrc) || /^[a-zA-Z]:[\\/]/.test(decodedSrc);
+        const isUnixAbsPath = trimmedSrc.startsWith('/') || decodedSrc.startsWith('/');
         const isFileUrl = trimmedSrc.startsWith('file://');
 
-        let resolvedPath = trimmedSrc;
+        let resolvedPath = decodedSrc;
 
         if (isFileUrl) {
             // file:///C:/path -> C:/path, file:///home -> /home
@@ -367,7 +415,7 @@ const Editor: Component<EditorProps> = (props) => {
             const separator = /^[a-zA-Z]:[\\/]/.test(baseFilePath) ? '\\' : '/';
             const baseDir = baseFilePath.replace(/[\\/][^\\/]*$/, '');
             const cleanedBase = baseDir.replace(/[\\/]+$/, '');
-            const cleanedSrc = trimmedSrc.replace(/^[\\/]+/, '');
+            const cleanedSrc = resolvedPath.replace(/^[\\/]+/, '');
             resolvedPath = `${cleanedBase}${separator}${cleanedSrc}`;
         }
 
@@ -553,8 +601,6 @@ const Editor: Component<EditorProps> = (props) => {
                 await saveToFile(filePath, content);
                 setIsModified(false);
                 console.log('文件已保存:', filePath);
-                // 显示保存成功提示
-                alert('文件已保存');
             } else {
                 // 另存为
                 const savedPath = await saveFile(content);
@@ -933,42 +979,42 @@ const Editor: Component<EditorProps> = (props) => {
 
     const scrollToHeadingInPreviewOnce = (headingText: string | undefined, lineNumber: number) => {
         if (!editorContainer) return false;
-        // 查找预览区域 - 尝试多种选择器
-        let previewElement: Element | null = null;
+                // 查找预览区域 - 尝试多种选择器
+                let previewElement: Element | null = null;
 
-        // 方式1: 查找 .cherry-editor__preview
-        if (editorContainer) {
-            previewElement = editorContainer.querySelector('.cherry-editor__preview');
-        }
+                // 方式1: 查找 .cherry-editor__preview
+                if (editorContainer) {
+                    previewElement = editorContainer.querySelector('.cherry-editor__preview');
+                }
 
-        // 方式2: 查找 .cherry-previewer（实际内容容器）
-        if (!previewElement && editorContainer) {
-            previewElement = editorContainer.querySelector('.cherry-previewer');
-        }
+                // 方式2: 查找 .cherry-previewer（实际内容容器）
+                if (!previewElement && editorContainer) {
+                    previewElement = editorContainer.querySelector('.cherry-previewer');
+                }
 
-        // 方式3: 查找包含 markdown 内容的容器
-        if (!previewElement && editorContainer) {
-            previewElement = editorContainer.querySelector('.cherry-markdown');
-        }
+                // 方式3: 查找包含 markdown 内容的容器
+                if (!previewElement && editorContainer) {
+                    previewElement = editorContainer.querySelector('.cherry-markdown');
+                }
 
-        // 方式4: 查找任何包含 preview 的类
-        if (!previewElement && editorContainer) {
-            previewElement = editorContainer.querySelector('[class*="preview"]');
-        }
+                // 方式4: 查找任何包含 preview 的类
+                if (!previewElement && editorContainer) {
+                    previewElement = editorContainer.querySelector('[class*="preview"]');
+                }
 
-        // 方式5: 在整个容器中查找
-        if (!previewElement && editorContainer) {
-            previewElement = editorContainer;
-        }
+                // 方式5: 在整个容器中查找
+                if (!previewElement && editorContainer) {
+                    previewElement = editorContainer;
+                }
 
-        if (!previewElement) {
+                if (!previewElement) {
             return false;
-        }
+                }
 
-        // 查找所有标题元素 (h1-h6)
-        const headings = previewElement.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                // 查找所有标题元素 (h1-h6)
+                const headings = previewElement.querySelectorAll('h1, h2, h3, h4, h5, h6');
 
-        if (headings.length === 0) {
+                if (headings.length === 0) {
             return false;
         }
 
@@ -1007,106 +1053,106 @@ const Editor: Component<EditorProps> = (props) => {
             }
         }
 
-        // 如果提供了标题文本，优先使用文本匹配
-        if (headingText) {
-            for (let i = 0; i < headings.length; i++) {
-                const heading = headings[i];
-                const text = heading.textContent?.trim();
+                // 如果提供了标题文本，优先使用文本匹配
+                if (headingText) {
+                    for (let i = 0; i < headings.length; i++) {
+                        const heading = headings[i];
+                        const text = heading.textContent?.trim();
 
-                // 精确匹配或包含匹配
-                if (text === headingText || text?.includes(headingText) || headingText.includes(text || '')) {
-                    // 找到可滚动的父容器
-                    let scrollContainer: Element | null = heading;
+                        // 精确匹配或包含匹配
+                        if (text === headingText || text?.includes(headingText) || headingText.includes(text || '')) {
+                            // 找到可滚动的父容器
+                            let scrollContainer: Element | null = heading;
 
-                    // 向上查找可滚动的容器
-                    while (scrollContainer && scrollContainer !== previewElement) {
-                        const style = window.getComputedStyle(scrollContainer);
-                        if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
-                            style.overflow === 'auto' || style.overflow === 'scroll') {
-                            break;
-                        }
-                        scrollContainer = scrollContainer.parentElement;
-                    }
+                            // 向上查找可滚动的容器
+                            while (scrollContainer && scrollContainer !== previewElement) {
+                                const style = window.getComputedStyle(scrollContainer);
+                                if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+                                    style.overflow === 'auto' || style.overflow === 'scroll') {
+                                    break;
+                                }
+                                scrollContainer = scrollContainer.parentElement;
+                            }
 
-                    // 计算标题相对于滚动容器的位置
-                    const headingRect = heading.getBoundingClientRect();
+                            // 计算标题相对于滚动容器的位置
+                            const headingRect = heading.getBoundingClientRect();
 
-                    // 优先使用找到的滚动容器
-                    if (scrollContainer && scrollContainer instanceof HTMLElement) {
-                        const containerRect = scrollContainer.getBoundingClientRect();
-                        const scrollTop = scrollContainer.scrollTop + headingRect.top - containerRect.top - 100;
-                        scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                    } else if (previewElement && previewElement instanceof HTMLElement) {
-                        // 使用预览元素作为滚动容器
-                        const containerRect = previewElement.getBoundingClientRect();
-                        const scrollTop = previewElement.scrollTop + headingRect.top - containerRect.top - 100;
-                        previewElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                    } else {
-                        // 使用 scrollIntoView 作为后备方案
-                        heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
+                            // 优先使用找到的滚动容器
+                            if (scrollContainer && scrollContainer instanceof HTMLElement) {
+                                const containerRect = scrollContainer.getBoundingClientRect();
+                                const scrollTop = scrollContainer.scrollTop + headingRect.top - containerRect.top - 100;
+                                scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                            } else if (previewElement && previewElement instanceof HTMLElement) {
+                                // 使用预览元素作为滚动容器
+                                const containerRect = previewElement.getBoundingClientRect();
+                                const scrollTop = previewElement.scrollTop + headingRect.top - containerRect.top - 100;
+                                previewElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                            } else {
+                                // 使用 scrollIntoView 作为后备方案
+                                heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
 
-                    // 高亮标题
-                    heading.classList.add('heading-highlight');
-                    setTimeout(() => {
-                        heading.classList.remove('heading-highlight');
-                    }, 1000);
+                            // 高亮标题
+                            heading.classList.add('heading-highlight');
+                            setTimeout(() => {
+                                heading.classList.remove('heading-highlight');
+                            }, 1000);
 
                     return true;
+                        }
+                    }
                 }
-            }
-        }
 
-        // 如果文本匹配失败，尝试根据行号提取标题文本
-        const markdownContent = cherryInstance ? (cherryInstance as any).getMarkdown?.() : '';
-        if (markdownContent) {
-            const lines = markdownContent.split('\n');
-            const targetLine = lines[lineNumber - 1];
+                // 如果文本匹配失败，尝试根据行号提取标题文本
+                const markdownContent = cherryInstance ? (cherryInstance as any).getMarkdown?.() : '';
+                if (markdownContent) {
+                    const lines = markdownContent.split('\n');
+                    const targetLine = lines[lineNumber - 1];
 
-            if (targetLine && targetLine.trim().startsWith('#')) {
-                // 提取标题文本
-                const extractedText = targetLine.replace(/^#+\s*/, '').trim();
+                    if (targetLine && targetLine.trim().startsWith('#')) {
+                        // 提取标题文本
+                        const extractedText = targetLine.replace(/^#+\s*/, '').trim();
 
-                // 再次尝试匹配
-                for (let i = 0; i < headings.length; i++) {
-                    const heading = headings[i];
-                    const text = heading.textContent?.trim();
+                        // 再次尝试匹配
+                        for (let i = 0; i < headings.length; i++) {
+                            const heading = headings[i];
+                            const text = heading.textContent?.trim();
 
-                    if (text === extractedText || text?.includes(extractedText)) {
-                        // 找到可滚动的父容器
-                        let scrollContainer: Element | null = heading;
+                            if (text === extractedText || text?.includes(extractedText)) {
+                                // 找到可滚动的父容器
+                                let scrollContainer: Element | null = heading;
 
-                        while (scrollContainer && scrollContainer !== previewElement) {
-                            const style = window.getComputedStyle(scrollContainer);
-                            if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
-                                style.overflow === 'auto' || style.overflow === 'scroll') {
-                                break;
-                            }
-                            scrollContainer = scrollContainer.parentElement;
-                        }
+                                while (scrollContainer && scrollContainer !== previewElement) {
+                                    const style = window.getComputedStyle(scrollContainer);
+                                    if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+                                        style.overflow === 'auto' || style.overflow === 'scroll') {
+                                        break;
+                                    }
+                                    scrollContainer = scrollContainer.parentElement;
+                                }
 
-                        // 计算标题相对于滚动容器的位置
-                        const headingRect = heading.getBoundingClientRect();
+                                // 计算标题相对于滚动容器的位置
+                                const headingRect = heading.getBoundingClientRect();
 
-                        // 优先使用找到的滚动容器
-                        if (scrollContainer && scrollContainer instanceof HTMLElement) {
-                            const containerRect = scrollContainer.getBoundingClientRect();
-                            const scrollTop = scrollContainer.scrollTop + headingRect.top - containerRect.top - 100;
-                            scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                        } else if (previewElement && previewElement instanceof HTMLElement) {
-                            // 使用预览元素作为滚动容器
-                            const containerRect = previewElement.getBoundingClientRect();
-                            const scrollTop = previewElement.scrollTop + headingRect.top - containerRect.top - 100;
-                            previewElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                        } else {
-                            // 使用 scrollIntoView 作为后备方案
-                            heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
+                                // 优先使用找到的滚动容器
+                                if (scrollContainer && scrollContainer instanceof HTMLElement) {
+                                    const containerRect = scrollContainer.getBoundingClientRect();
+                                    const scrollTop = scrollContainer.scrollTop + headingRect.top - containerRect.top - 100;
+                                    scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                                } else if (previewElement && previewElement instanceof HTMLElement) {
+                                    // 使用预览元素作为滚动容器
+                                    const containerRect = previewElement.getBoundingClientRect();
+                                    const scrollTop = previewElement.scrollTop + headingRect.top - containerRect.top - 100;
+                                    previewElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                                } else {
+                                    // 使用 scrollIntoView 作为后备方案
+                                    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }
 
-                        heading.classList.add('heading-highlight');
-                        setTimeout(() => {
-                            heading.classList.remove('heading-highlight');
-                        }, 1000);
+                                heading.classList.add('heading-highlight');
+                                setTimeout(() => {
+                                    heading.classList.remove('heading-highlight');
+                                }, 1000);
 
                         return true;
                     }
@@ -1125,8 +1171,8 @@ const Editor: Component<EditorProps> = (props) => {
         const tryScroll = (attempts = 0) => {
             if (attempts > 10) {
                 console.error('预览模式滚动失败：无法找到预览区域或标题');
-                return;
-            }
+                                return;
+                            }
 
             try {
                 const ok = scrollToHeadingInPreviewOnce(headingText, lineNumber);

@@ -13,10 +13,13 @@
   flex-direction: column;
   transition: margin-left 0.3s ease;
   margin-left: 0;
+  width: 100%;
+  min-width: 0;
 }
 
 .main-content.with-sidebar {
   margin-left: 250px;
+  width: calc(100% - 250px);
 }
 
 .sidebar-toggle {
