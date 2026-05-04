@@ -1,12 +1,20 @@
-import { Component, createSignal, onMount } from 'solid-js';
+import { Component, createEffect, createSignal, onMount } from 'solid-js';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import Editor from './components/Editor';
 import Sidebar from './components/Sidebar';
-import { listDirectoryFiles } from './utils/fileOperations';
+import {
+  listDirectoryFiles,
+  listWorkspaceFiles,
+  openDirectory,
+  renameFile,
+  searchWorkspaceFiles,
+  type SearchResult,
+} from './utils/fileOperations';
 import { t } from './utils/i18n';
 import './App.css';
 
 const RECENT_FILES_KEY = 'dongshan_recent_files';
+const WORKSPACE_PATH_KEY = 'dongshan_workspace_path';
 const MAX_RECENT = 20;
 
 const loadRecentFiles = (): string[] => {
@@ -31,6 +39,24 @@ const addRecentFile = (filePath: string) => {
   const trimmed = filtered.slice(0, MAX_RECENT);
   saveRecentFiles(trimmed);
   return trimmed;
+};
+
+const replaceStoredPath = (paths: string[], oldPath: string, newPath: string) =>
+  paths.map(path => path === oldPath ? newPath : path);
+
+const loadWorkspacePath = (): string | null => {
+  try {
+    return localStorage.getItem(WORKSPACE_PATH_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const saveWorkspacePath = (filePath: string | null) => {
+  try {
+    if (filePath) localStorage.setItem(WORKSPACE_PATH_KEY, filePath);
+    else localStorage.removeItem(WORKSPACE_PATH_KEY);
+  } catch { /* ignore */ }
 };
 
 const getInitialTheme = (): string => {
@@ -60,6 +86,11 @@ const App: Component = () => {
   const [currentFilePath, setCurrentFilePath] = createSignal<string | null>(null);
   const [dirFiles, setDirFiles] = createSignal<string[]>([]);
   const [recentFiles, setRecentFiles] = createSignal<string[]>(loadRecentFiles());
+  const [workspacePath, setWorkspacePath] = createSignal<string | null>(loadWorkspacePath());
+  const [workspaceFiles, setWorkspaceFiles] = createSignal<string[]>([]);
+  const [workspaceSearchResults, setWorkspaceSearchResults] = createSignal<SearchResult[]>([]);
+  const [pendingJump, setPendingJump] = createSignal<{ filePath: string; lineNumber: number } | null>(null);
+  const [renamedFile, setRenamedFile] = createSignal<{ oldPath: string; newPath: string } | null>(null);
 
   onMount(() => {
     applyTheme(getInitialTheme());
@@ -83,6 +114,15 @@ const App: Component = () => {
     setDirFiles(files);
   };
 
+  const refreshWorkspaceFiles = async (rootPath = workspacePath()) => {
+    if (!rootPath) {
+      setWorkspaceFiles([]);
+      return;
+    }
+    const files = await listWorkspaceFiles(rootPath);
+    setWorkspaceFiles(files);
+  };
+
   const handleContentChange = (content: string) => {
     setMarkdownContent(content);
   };
@@ -103,11 +143,69 @@ const App: Component = () => {
     }
   };
 
+  const handleOpenWorkspace = async () => {
+    try {
+      const dirPath = await openDirectory();
+      if (!dirPath) return;
+      setWorkspacePath(dirPath);
+      saveWorkspacePath(dirPath);
+      const files = await listWorkspaceFiles(dirPath);
+      setWorkspaceFiles(files);
+      setWorkspaceSearchResults([]);
+      setSidebarVisible(true);
+    } catch {
+      console.error(t('dir.workspaceFailed'));
+    }
+  };
+
+  const handleWorkspaceSearch = async (query: string) => {
+    const rootPath = workspacePath();
+    if (!rootPath || !query.trim()) {
+      setWorkspaceSearchResults([]);
+      return;
+    }
+    const results = await searchWorkspaceFiles(rootPath, query);
+    setWorkspaceSearchResults(results);
+  };
+
+  const handleRenameFile = async (oldPath: string, newName: string) => {
+    try {
+      const newPath = await renameFile(oldPath, newName);
+      if (newPath === oldPath) return;
+
+      setOpenFiles(prev => replaceStoredPath(prev, oldPath, newPath));
+      setRecentFiles(prev => {
+        const next = replaceStoredPath(prev, oldPath, newPath);
+        saveRecentFiles(next);
+        return next;
+      });
+      if (currentFilePath() === oldPath) {
+        setCurrentFilePath(newPath);
+      }
+      setRenamedFile({ oldPath, newPath });
+      await refreshDirFiles(newPath);
+      await refreshWorkspaceFiles();
+    } catch {
+      alert(t('dir.renameFailed'));
+    }
+  };
+
   const handleHeadingClick = (lineNumber: number, headingText?: string) => {
     if ((window as any).__editorJumpToLine) {
       (window as any).__editorJumpToLine(lineNumber, headingText);
     }
   };
+
+  createEffect(() => {
+    const jump = pendingJump();
+    if (!jump || currentFilePath() !== jump.filePath) return;
+    setTimeout(() => {
+      if ((window as any).__editorJumpToLine) {
+        (window as any).__editorJumpToLine(jump.lineNumber);
+      }
+      setPendingJump(null);
+    }, 120);
+  });
 
   onMount(async () => {
     let unlisten: UnlistenFn | null = null;
@@ -129,6 +227,11 @@ const App: Component = () => {
       (window as any).__devOpenFile = (filePath: string) => {
         setFileToOpen(filePath);
       };
+    }
+
+    const storedWorkspacePath = workspacePath();
+    if (storedWorkspacePath) {
+      refreshWorkspaceFiles(storedWorkspacePath);
     }
 
     if (isTauri) {
@@ -176,7 +279,14 @@ const App: Component = () => {
         currentFilePath={currentFilePath()}
         dirFiles={dirFiles()}
         recentFiles={recentFiles()}
-        onFileClick={(filePath) => {
+        workspacePath={workspacePath()}
+        workspaceFiles={workspaceFiles()}
+        searchResults={workspaceSearchResults()}
+        onOpenWorkspace={handleOpenWorkspace}
+        onRenameFile={handleRenameFile}
+        onWorkspaceSearch={handleWorkspaceSearch}
+        onFileClick={(filePath, lineNumber) => {
+          if (lineNumber) setPendingJump({ filePath, lineNumber });
           setFileToOpen(filePath);
           refreshDirFiles(filePath);
         }}
@@ -187,6 +297,7 @@ const App: Component = () => {
           onHeadingClick={handleHeadingClick}
           initialFilePath={fileToOpen()}
           onFilePathChange={handleFilePathChange}
+          renamedFile={renamedFile()}
         />
       </div>
       {!sidebarVisible() && (
