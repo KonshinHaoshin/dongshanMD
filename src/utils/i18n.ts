@@ -65,6 +65,16 @@ const dict: I18nDict = {
   'export.html': { 'zh-CN': 'HTML (.html)', 'en-US': 'HTML (.html)' },
   'dir.open': { 'zh-CN': '打开文件夹', 'en-US': 'Open Folder' },
   'dir.noFolder': { 'zh-CN': '未打开文件夹', 'en-US': 'No folder opened' },
+  'status.words': { 'zh-CN': '{n} 词', 'en-US': '{n} words' },
+  'status.lines': { 'zh-CN': '{n} 行', 'en-US': '{n} lines' },
+  'status.chars': { 'zh-CN': '{n} 字', 'en-US': '{n} chars' },
+  'focus.enter': { 'zh-CN': '进入专注模式 (F11)', 'en-US': 'Enter Focus Mode (F11)' },
+  'focus.exit': { 'zh-CN': '退出专注模式 (F11)', 'en-US': 'Exit Focus Mode (F11)' },
+  'command.palette': { 'zh-CN': '命令面板', 'en-US': 'Command Palette' },
+  'command.search': { 'zh-CN': '搜索命令...', 'en-US': 'Search commands...' },
+  'help.title': { 'zh-CN': '快捷键', 'en-US': 'Shortcuts' },
+  'help.close': { 'zh-CN': '关闭', 'en-US': 'Close' },
+  'tab.close': { 'zh-CN': '关闭', 'en-US': 'Close' },
 };
 
 const storedLocale: Locale = (() => {
