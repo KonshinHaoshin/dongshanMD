@@ -1,5 +1,5 @@
 .sidebar {
-  width: 250px;
+  width: 260px;
   height: 100%;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border-color);
@@ -11,77 +11,80 @@
   top: 0;
   z-index: 1000;
   transform: translateX(-100%);
-  transition: transform 0.3s ease;
+  transition: transform 0.22s ease;
 }
 
 .sidebar.show {
   transform: translateX(0);
 }
 
+/* ───────── Header ───────── */
+
 .sidebar-header {
-  padding: 8px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 10px 12px 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--bg-header);
+  background: var(--bg-sidebar);
   gap: 8px;
 }
 
 .sidebar-tabs {
   display: flex;
-  gap: 4px;
-  flex: 1;
+  gap: 2px;
 }
 
 .tab-btn {
-  flex: 1;
-  padding: 6px 12px;
+  padding: 4px 10px;
   font-size: 12px;
-  border: 1px solid var(--btn-border);
-  background: var(--btn-bg);
+  font-weight: 500;
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   border-radius: 4px;
-  transition: all 0.2s;
+  transition: color 0.15s, background 0.15s;
+  line-height: 1.5;
 }
 
 .tab-btn:hover {
+  color: var(--text-primary);
   background: var(--tab-hover-bg);
 }
 
 .tab-btn.active {
-  background: var(--btn-active-bg);
-  color: var(--btn-active-text);
-  border-color: var(--btn-active-bg);
+  color: var(--text-primary);
+  background: var(--outline-active-bg);
 }
 
 .sidebar-close {
   background: none;
   border: none;
-  font-size: 20px;
+  font-size: 16px;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 4px 8px;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  line-height: 1;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s;
 }
 
 .sidebar-close:hover {
+  opacity: 1;
   color: var(--text-primary);
   background: var(--tab-hover-bg);
 }
 
+/* ───────── Content ───────── */
+
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 4px 8px 12px;
 }
 
 .file-tree {
@@ -90,168 +93,102 @@
   padding: 0;
 }
 
-.workspace-bar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
+/* ───────── No workspace ───────── */
+
+.ws-placeholder {
+  padding: 8px 4px 0;
+  text-align: center;
 }
 
-.workspace-action {
-  min-height: 28px;
-  min-width: 28px;
-  padding: 4px 6px;
-  font-size: 13px;
-  border: 1px solid var(--btn-border);
-  background: var(--btn-bg);
-  color: var(--btn-text);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.workspace-action:hover {
-  background: var(--btn-hover-bg);
-}
-
-.workspace-path {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-secondary);
-  font-size: 11px;
-}
-
-.workspace-open {
-  min-height: 28px;
-  padding: 4px 8px;
+.ws-open-btn {
+  min-height: 32px;
+  padding: 6px 20px;
   font-size: 12px;
+  font-weight: 500;
   border: 1px solid var(--btn-border);
   background: var(--btn-bg);
   color: var(--btn-text);
   border-radius: 4px;
   cursor: pointer;
+  transition: background 0.15s;
 }
 
-.workspace-open:hover,
-.file-rename:hover {
+.ws-open-btn:hover {
   background: var(--btn-hover-bg);
 }
 
-.recent-header {
+.ws-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ───────── Workspace header ───────── */
+
+.ws-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 4px 4px;
+  padding: 2px 4px 2px 4px;
+  min-height: 28px;
 }
 
-.recent-header .workspace-meta {
-  padding: 0;
-}
-
-.clear-recent-btn {
-  font-size: 11px;
-  padding: 2px 8px;
-  border: 1px solid var(--btn-border);
-  background: var(--btn-bg);
-  color: var(--text-secondary);
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.clear-recent-btn:hover {
-  background: var(--btn-hover-bg);
-  color: var(--error-text);
-}
-
-.tree-container {
-  user-select: none;
-}
-
-.tree-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-radius: 3px;
-  transition: background-color 0.15s;
-  white-space: nowrap;
-}
-
-.tree-item:hover {
-  background: var(--outline-hover-bg);
-}
-
-.tree-item.active {
-  background: var(--btn-active-bg);
-  color: var(--btn-active-text);
-}
-
-.tree-dir {
-  font-weight: 500;
-}
-
-.tree-arrow {
-  font-size: 10px;
-  width: 12px;
-  text-align: center;
-  flex-shrink: 0;
-  color: var(--text-secondary);
-}
-
-.tree-file .tree-arrow {
-  visibility: hidden;
-}
-
-.tree-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.tree-name {
+.ws-title {
   font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
   min-width: 0;
-  color: var(--text-primary);
 }
 
-.tree-item.active .tree-name {
-  color: var(--btn-active-text);
-}
-
-.tree-item .file-rename {
-  opacity: 0;
-  border: none;
-  background: transparent;
-  color: currentColor;
-  cursor: pointer;
-  border-radius: 3px;
-  padding: 0 5px;
-  line-height: 18px;
-  font-size: 12px;
+.ws-actions {
+  display: flex;
+  gap: 1px;
   flex-shrink: 0;
 }
 
-.tree-item:hover .file-rename {
-  opacity: 1;
+.ws-icon-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s;
 }
 
-.tree-loading {
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 4px 8px;
+.ws-icon-btn:hover {
+  opacity: 1;
+  background: var(--tab-hover-bg);
 }
+
+.ws-path {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 0 4px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.6;
+}
+
+/* ───────── Search ───────── */
+
+.workspace-search {
   width: 100%;
   min-height: 30px;
-  margin-bottom: 8px;
+  margin: 8px 0;
   padding: 5px 8px;
-  border: 1px solid var(--btn-border);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   background: var(--btn-bg);
   color: var(--text-primary);
@@ -266,17 +203,99 @@
 .workspace-meta {
   color: var(--text-secondary);
   font-size: 11px;
-  padding: 2px 4px 8px;
+  padding: 2px 8px 4px;
+  opacity: 0.6;
 }
 
-.file-item {
-  padding: 8px 12px;
+/* ───────── Tree ───────── */
+
+.tree-container {
+  user-select: none;
+}
+
+.tree-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  padding: 3px 6px;
   cursor: pointer;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  transition: background-color 0.1s;
+  white-space: nowrap;
+  min-height: 26px;
+}
+
+.tree-item:hover {
+  background: var(--outline-hover-bg);
+}
+
+.tree-item.active {
+  background: var(--outline-active-bg);
+}
+
+.tree-dir {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tree-arrow {
+  font-size: 11px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.tree-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.tree-rename {
+  opacity: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  flex-shrink: 0;
+}
+
+.tree-item:hover .tree-rename {
+  opacity: 0.6;
+}
+
+.tree-item:hover .tree-rename:hover {
+  opacity: 1;
+  background: var(--btn-hover-bg);
+}
+
+.tree-loading {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 3px 6px;
+  opacity: 0.5;
+}
+
+/* ───────── Flat file list ───────── */
+
+.file-item {
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.1s;
+  min-height: 28px;
 }
 
 .file-item:hover {
@@ -284,28 +303,11 @@
 }
 
 .file-item.active {
-  background: var(--btn-active-bg);
-  color: var(--btn-active-text);
-  font-weight: 500;
-}
-
-.file-item.active:hover {
-  background: var(--btn-active-bg);
-}
-
-.file-empty {
-  padding: 16px;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.file-icon {
-  font-size: 16px;
+  background: var(--outline-active-bg);
 }
 
 .file-name {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-primary);
   min-width: 0;
   flex: 1;
@@ -314,21 +316,37 @@
   white-space: nowrap;
 }
 
-.file-rename {
+.file-rename-btn {
   opacity: 0;
   border: none;
   background: transparent;
-  color: currentColor;
+  color: var(--text-secondary);
   cursor: pointer;
   border-radius: 3px;
-  padding: 0 5px;
-  line-height: 18px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  flex-shrink: 0;
 }
 
-.file-item:hover .file-rename,
-.file-item.active .file-rename {
-  opacity: 1;
+.file-item:hover .file-rename-btn {
+  opacity: 0.6;
 }
+
+.file-item:hover .file-rename-btn:hover {
+  opacity: 1;
+  background: var(--btn-hover-bg);
+}
+
+.file-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* ───────── Search results ───────── */
 
 .search-result {
   padding: 8px 10px;
@@ -360,22 +378,54 @@
   -webkit-box-orient: vertical;
 }
 
+/* ───────── Recent ───────── */
+
+.recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 4px;
+}
+
+.recent-header .workspace-meta {
+  padding: 0;
+}
+
+.clear-recent-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.clear-recent-btn:hover {
+  background: var(--btn-hover-bg);
+  color: var(--error-text);
+}
+
+/* ───────── Outline ───────── */
+
 .outline-tree {
-  padding: 8px;
+  padding: 2px 0;
 }
 
 .outline-empty {
-  padding: 20px;
+  padding: 24px 16px;
   text-align: center;
   color: var(--text-secondary);
   font-size: 12px;
+  opacity: 0.6;
 }
 
 .outline-item {
-  padding: 6px 12px;
+  padding: 5px 8px;
   cursor: pointer;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  transition: background-color 0.1s;
   user-select: none;
 }
 
@@ -392,35 +442,9 @@
   white-space: nowrap;
 }
 
-.outline-item.level-1 {
-  padding-left: 12px;
-  font-weight: 600;
-}
-
-.outline-item.level-2 {
-  padding-left: 20px;
-  font-weight: 500;
-}
-
-.outline-item.level-3 {
-  padding-left: 28px;
-  font-weight: 400;
-}
-
-.outline-item.level-4 {
-  padding-left: 36px;
-  font-weight: 400;
-  font-size: 12px;
-}
-
-.outline-item.level-5 {
-  padding-left: 44px;
-  font-weight: 400;
-  font-size: 12px;
-}
-
-.outline-item.level-6 {
-  padding-left: 52px;
-  font-weight: 400;
-  font-size: 12px;
-}
+.outline-item.level-1 { padding-left: 8px; font-weight: 700; }
+.outline-item.level-2 { padding-left: 18px; font-weight: 600; }
+.outline-item.level-3 { padding-left: 28px; font-weight: 500; }
+.outline-item.level-4 { padding-left: 38px; font-weight: 400; font-size: 12px; }
+.outline-item.level-5 { padding-left: 48px; font-weight: 400; font-size: 12px; }
+.outline-item.level-6 { padding-left: 58px; font-weight: 400; font-size: 12px; }

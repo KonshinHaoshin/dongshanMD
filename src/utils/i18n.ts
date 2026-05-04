@@ -45,6 +45,7 @@ const dict: I18nDict = {
   'search.count': { 'zh-CN': '{count} 个匹配', 'en-US': '{count} matches' },
   'sidebar.toggle': { 'zh-CN': '显示侧边栏', 'en-US': 'Show sidebar' },
   'sidebar.files': { 'zh-CN': '文件', 'en-US': 'Files' },
+  'sidebar.recent': { 'zh-CN': '最近', 'en-US': 'Recent' },
   'sidebar.outline': { 'zh-CN': '大纲', 'en-US': 'Outline' },
   'editor.initFailed': { 'zh-CN': '初始化 WYSIWYG 编辑器失败', 'en-US': 'Failed to initialize WYSIWYG editor' },
   'image.pasteFailed': { 'zh-CN': '粘贴图片失败', 'en-US': 'Failed to paste image' },

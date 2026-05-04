@@ -35,26 +35,6 @@ const getFileName = (filePath: string) => {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const FILE_ICONS: Record<string, string> = {
-  md: '\u{1F4C4}', markdown: '\u{1F4C4}', txt: '\u{1F4C4}',
-  js: '\u{1F4DC}', ts: '\u{1F4DC}', tsx: '\u{1F4DC}', jsx: '\u{1F4DC}',
-  json: '\u{1F4C7}', yaml: '\u{1F4C2}', yml: '\u{1F4C2}',
-  css: '\u{1F3A8}', scss: '\u{1F3A8}', less: '\u{1F3A8}',
-  html: '\u{1F310}', htm: '\u{1F310}',
-  py: '\u{1F40D}', rs: '\u{1F916}', go: '\u{1F408}',
-  java: '\u2615', c: '\u2699', cpp: '\u2699', h: '\u2699',
-  sh: '\u{1F4BB}', bat: '\u{1F4BB}', ps1: '\u{1F4BB}',
-  sql: '\u{1F5C4}', xml: '\u{1F4C2}', toml: '\u{1F4C2}',
-  png: '\u{1F5BC}', jpg: '\u{1F5BC}', jpeg: '\u{1F5BC}', gif: '\u{1F5BC}', svg: '\u{1F3A8}',
-  pdf: '\u{1F4D1}',
-  zip: '\u{1F4E6}', tar: '\u{1F4E6}', gz: '\u{1F4E6}',
-};
-
-export const getFileIcon = (filePath: string) => {
-  const ext = getFileExt(filePath);
-  return FILE_ICONS[ext] || '\u{1F4C4}';
-};
-
 const sortTreeNodes = (nodes: TreeNode[]): TreeNode[] => {
   return nodes.sort((a, b) => {
     if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;

@@ -1,7 +1,7 @@
 import { Component, Show, For, createSignal, createEffect } from 'solid-js';
 import { t } from '../utils/i18n';
 import type { SearchResult, TreeNode } from '../utils/fileOperations';
-import { getFileIcon, expandTreeNode, createNewFile } from '../utils/fileOperations';
+import { expandTreeNode, createNewFile } from '../utils/fileOperations';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -22,7 +22,6 @@ interface SidebarProps {
   onWorkspaceSearch?: (query: string) => void;
   onFileClick?: (filePath: string, lineNumber?: number) => void;
   onClearRecent?: () => void;
-  onTreeToggle?: (dirPath: string) => void;
   onNewFile?: (filePath: string) => void;
   onTreeRefresh?: () => void;
 }
@@ -76,9 +75,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
   });
 
   const handleHeadingClick = (heading: Heading) => {
-    if (props.onHeadingClick) {
-      props.onHeadingClick(heading.lineNumber, heading.text);
-    }
+    props.onHeadingClick?.(heading.lineNumber, heading.text);
   };
 
   const getFileName = (filePath: string) => {
@@ -151,7 +148,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
     return nodes.map(node => {
       const isExpanded = expandedDirs().has(node.path);
       const isActive = !node.isDirectory && node.path === props.currentFilePath;
-      const paddingLeft = `${12 + depth * 16}px`;
+      const paddingLeft = `${8 + depth * 16}px`;
 
       if (node.isDirectory) {
         return (
@@ -162,15 +159,14 @@ const Sidebar: Component<SidebarProps> = (props) => {
               onClick={() => toggleDir(node.path)}
               title={node.path}
             >
-              <span class="tree-arrow">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-              <span class="tree-icon">{isExpanded ? '\u{1F4C2}' : '\u{1F4C1}'}</span>
+              <span class="tree-arrow">{isExpanded ? '\u25BE' : '\u25B8'}</span>
               <span class="tree-name">{node.name}</span>
             </div>
             <Show when={isExpanded && node.children}>
               {renderTree(node.children!, depth + 1)}
             </Show>
             <Show when={isExpanded && loadingDir() === node.path}>
-              <div class="tree-loading" style={{ 'padding-left': `${28 + depth * 16}px` }}>...</div>
+              <div class="tree-loading" style={{ 'padding-left': `${24 + depth * 16}px` }}>...</div>
             </Show>
           </>
         );
@@ -179,54 +175,56 @@ const Sidebar: Component<SidebarProps> = (props) => {
       return (
         <div
           class={`tree-item tree-file ${isActive ? 'active' : ''}`}
-          style={{ 'padding-left': paddingLeft }}
+          style={{ 'padding-left': `${24 + depth * 16}px` }}
           onClick={() => props.onFileClick?.(node.path)}
           title={node.path}
         >
-          <span class="tree-icon">{getFileIcon(node.path)}</span>
           <span class="tree-name">{node.name}</span>
-          <button class="file-rename" title={t('dir.rename')} onClick={(e) => handleRename(e, node.path)}>...</button>
+          <button class="tree-rename" title={t('dir.rename')} onClick={(e) => handleRename(e, node.path)}>...</button>
         </div>
       );
     });
   };
+
+  const renderFlatFiles = (files: string[]) => {
+    return files.map(filePath => {
+      const fileName = getFileName(filePath);
+      const isActive = filePath === props.currentFilePath;
+      return (
+        <div
+          class="file-item"
+          classList={{ 'active': isActive }}
+          onClick={() => props.onFileClick?.(filePath)}
+          title={filePath}
+        >
+          <span class="file-name">{fileName}</span>
+          <button class="file-rename-btn" title={t('dir.rename')} onClick={(e) => handleRename(e, filePath)}>...</button>
+        </div>
+      );
+    });
+  };
+
+  const wp = () => props.workspacePath;
 
   return (
     <Show when={props.visible}>
       <div class="sidebar show">
         <div class="sidebar-header">
           <div class="sidebar-tabs">
-            <button
-              class={`tab-btn ${activeTab() === 'dir' ? 'active' : ''}`}
-              onClick={() => setActiveTab('dir')}
-              title={t('sidebar.files')}
-            >
-              &#128193;
-            </button>
-            <button
-              class={`tab-btn ${activeTab() === 'recent' ? 'active' : ''}`}
-              onClick={() => setActiveTab('recent')}
-              title={t('dir.open')}
-            >
-              &#128339;
-            </button>
-            <button
-              class={`tab-btn ${activeTab() === 'outline' ? 'active' : ''}`}
-              onClick={() => setActiveTab('outline')}
-              title={t('sidebar.outline')}
-            >
-              &#9776;
-            </button>
+            <button class={`tab-btn ${activeTab() === 'dir' ? 'active' : ''}`} onClick={() => setActiveTab('dir')}>{t('sidebar.files')}</button>
+            <button class={`tab-btn ${activeTab() === 'recent' ? 'active' : ''}`} onClick={() => setActiveTab('recent')}>{t('sidebar.recent')}</button>
+            <button class={`tab-btn ${activeTab() === 'outline' ? 'active' : ''}`} onClick={() => setActiveTab('outline')}>{t('sidebar.outline')}</button>
           </div>
-          <button class="sidebar-close" onClick={props.onToggle}>x</button>
+          <button class="sidebar-close" onClick={props.onToggle}>&times;</button>
         </div>
-        <div class="sidebar-content">
 
+        <div class="sidebar-content">
           <Show when={activeTab() === 'dir'}>
             <div class="file-tree">
-              <Show when={!props.workspacePath}>
-                <div class="workspace-bar">
-                  <button class="workspace-open" onClick={props.onOpenWorkspace}>{t('dir.open')}</button>
+              <Show when={!wp()}>
+                <div class="ws-placeholder">
+                  <button class="ws-open-btn" onClick={props.onOpenWorkspace}>{t('dir.open')}</button>
+                  <div class="ws-hint">{t('dir.noFolder')}</div>
                 </div>
                 <input
                   class="workspace-search"
@@ -239,7 +237,6 @@ const Sidebar: Component<SidebarProps> = (props) => {
                     props.onWorkspaceSearch?.(query);
                   }}
                 />
-
                 <Show when={workspaceQuery().trim()}>
                   <div class="workspace-meta">{t('search.count', { count: props.searchResults?.length || 0 })}</div>
                   <Show when={!props.searchResults || props.searchResults.length === 0}>
@@ -254,46 +251,27 @@ const Sidebar: Component<SidebarProps> = (props) => {
                     )}
                   </For>
                 </Show>
-
                 <Show when={!workspaceQuery().trim()}>
                   <div class="workspace-meta">{t('dir.filesCount', { n: (props.dirFiles || []).length })}</div>
                   <Show when={!props.dirFiles || props.dirFiles.length === 0}>
                     <div class="file-empty">{t('dir.noFolder')}</div>
                   </Show>
-                  <For each={props.dirFiles || []}>
-                    {(filePath) => {
-                      const fileName = () => getFileName(filePath);
-                      const isActive = () => filePath === props.currentFilePath;
-                      return (
-                        <div
-                          class="file-item"
-                          classList={{ 'active': isActive() }}
-                          onClick={() => props.onFileClick?.(filePath)}
-                          title={filePath}
-                        >
-                          <span class="file-icon">{getFileIcon(filePath)}</span>
-                          <span class="file-name">{fileName()}</span>
-                          <button class="file-rename" title={t('dir.rename')} onClick={(event) => handleRename(event, filePath)}>...</button>
-                        </div>
-                      );
-                    }}
-                  </For>
+                  {renderFlatFiles(props.dirFiles || [])}
                 </Show>
               </Show>
 
-              <Show when={props.workspacePath}>
-                <div class="workspace-header">
-                  <div class="workspace-title" title={props.workspacePath}>
-                    {props.workspacePath.split(/[/\\]/).pop() || props.workspacePath}
+              <Show when={wp()}>
+                <div class="ws-header">
+                  <div class="ws-title" title={wp()!}>
+                    {wp()!.split(/[/\\]/).pop() || wp()!}
                   </div>
-                  <div class="workspace-actions">
-                    <button class="workspace-icon-btn" onClick={handleNewFile} title={t('dir.newFile')}>+</button>
-                    <button class="workspace-icon-btn" onClick={() => props.onTreeRefresh?.()} title={t('dir.collapseAll')}>&#8635;</button>
-                    <button class="workspace-icon-btn" onClick={props.onOpenWorkspace} title={t('dir.open')}>&#128193;</button>
+                  <div class="ws-actions">
+                    <button class="ws-icon-btn" onClick={handleNewFile} title={t('dir.newFile')}>+</button>
+                    <button class="ws-icon-btn" onClick={() => props.onTreeRefresh?.()} title={t('dir.collapseAll')}>&#8634;</button>
+                    <button class="ws-icon-btn" onClick={props.onOpenWorkspace} title={t('dir.open')}>&#128449;</button>
                   </div>
                 </div>
-                <div class="workspace-path-line" title={props.workspacePath}>{props.workspacePath}</div>
-
+                <div class="ws-path" title={wp()!}>{wp()!}</div>
                 <Show when={treeNodes().length === 0}>
                   <div class="file-empty">{t('dir.noFolder')}</div>
                 </Show>
@@ -315,30 +293,14 @@ const Sidebar: Component<SidebarProps> = (props) => {
               <Show when={!props.recentFiles || props.recentFiles.length === 0}>
                 <div class="file-empty">{t('dir.noFolder')}</div>
               </Show>
-              <For each={props.recentFiles || []}>
-                {(filePath) => {
-                  const fileName = () => getFileName(filePath);
-                  const isActive = () => filePath === props.currentFilePath;
-                  return (
-                    <div
-                      class="file-item"
-                      classList={{ 'active': isActive() }}
-                      onClick={() => props.onFileClick?.(filePath)}
-                      title={filePath}
-                    >
-                      <span class="file-icon">{getFileIcon(filePath)}</span>
-                      <span class="file-name">{fileName()}</span>
-                    </div>
-                  );
-                }}
-              </For>
+              {renderFlatFiles(props.recentFiles || [])}
             </div>
           </Show>
 
           <Show when={activeTab() === 'outline'}>
             <div class="outline-tree">
               <Show when={headings().length === 0}>
-                <div class="outline-empty">-</div>
+                <div class="outline-empty">&mdash;</div>
               </Show>
               <For each={headings()}>
                 {(heading) => (
@@ -354,7 +316,6 @@ const Sidebar: Component<SidebarProps> = (props) => {
               </For>
             </div>
           </Show>
-
         </div>
       </div>
     </Show>
