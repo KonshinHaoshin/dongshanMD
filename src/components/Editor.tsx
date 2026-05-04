@@ -19,6 +19,7 @@ import { exportFile, ExportProgressCallback } from '../utils/exportUtils';
 import { highlightMarkdown } from '../utils/markdownHighlight';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { mkdir, writeFile } from '@tauri-apps/plugin-fs';
+import { confirm } from '@tauri-apps/plugin-dialog';
 import { marked } from 'marked';
 import { t, getLocale, setLocale } from '../utils/i18n';
 import * as echarts from 'echarts';
@@ -190,13 +191,13 @@ const Editor: Component<EditorProps> = (props) => {
         applyDocumentToEditor(d);
     };
 
-    const closeTab = (i: number) => {
+    const closeTab = async (i: number) => {
         const currentTabs = tabs();
         if (!currentTabs[i]) return;
         const current = activeTab();
         const content = i === current ? persistActiveEditorContent() : currentTabs[i].content;
         const target = { ...currentTabs[i], content };
-        if (target.content !== target.savedContent && !window.confirm(t('file.confirmDiscard'))) return;
+        if (target.content !== target.savedContent && !(await confirm(t('file.confirmDiscard')))) return;
         clearAutoSaveTimer(target.path);
         if (currentTabs.length <= 1) {
             const next = { path: null, content: DEFAULT_MARKDOWN, savedContent: DEFAULT_MARKDOWN };
@@ -265,21 +266,21 @@ const Editor: Component<EditorProps> = (props) => {
 
     const closeCurrentTab = () => closeTab(activeTab());
 
-    const closeOtherTabs = () => {
+    const closeOtherTabs = async () => {
         const current = activeTab();
         const currentTabs = tabs();
         persistActiveEditorContent();
         const unsavedOther = currentTabs.some((tab, index) => index !== current && tab.content !== tab.savedContent);
-        if (unsavedOther && !window.confirm(t('file.confirmDiscard'))) return;
+        if (unsavedOther && !(await confirm(t('file.confirmDiscard')))) return;
         currentTabs.forEach((tab, index) => { if (index !== current) clearAutoSaveTimer(tab.path); });
         const activeDoc = tabs()[current];
         setTabs([activeDoc]);
         setActiveTab(0);
     };
 
-    const closeAllTabs = () => {
+    const closeAllTabs = async () => {
         persistActiveEditorContent();
-        if (hasUnsavedTabs() && !window.confirm(t('file.confirmDiscard'))) return;
+        if (hasUnsavedTabs() && !(await confirm(t('file.confirmDiscard')))) return;
         tabs().forEach(tab => clearAutoSaveTimer(tab.path));
         const next = { path: null, content: DEFAULT_MARKDOWN, savedContent: DEFAULT_MARKDOWN };
         setTabs([next]);
@@ -810,7 +811,7 @@ const Editor: Component<EditorProps> = (props) => {
                                     <div class="history-item">
                                         <span class="history-time">{new Date(v.time).toLocaleString()}</span>
                                         <span class="history-preview">{v.content.slice(0, 60).replace(/\n/g, ' ')}</span>
-                                        <button class="file-btn" onClick={() => { if (window.confirm(t('history.restoreConfirm'))) handleRestoreHistory(v.content); }}>{t('history.restore')}</button>
+                                        <button class="file-btn" onClick={async () => { if (await confirm(t('history.restoreConfirm'))) handleRestoreHistory(v.content); }}>{t('history.restore')}</button>
                                     </div>
                                 )}
                             </For>

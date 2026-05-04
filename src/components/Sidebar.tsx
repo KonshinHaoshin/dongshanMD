@@ -2,6 +2,7 @@ import { Component, Show, For, createSignal, createEffect } from 'solid-js';
 import { t } from '../utils/i18n';
 import type { SearchResult, TreeNode } from '../utils/fileOperations';
 import { expandTreeNode, createNewFile } from '../utils/fileOperations';
+import { confirm } from '@tauri-apps/plugin-dialog';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -133,8 +134,9 @@ const Sidebar: Component<SidebarProps> = (props) => {
     }
   };
 
-  const handleClearRecent = () => {
-    if (window.confirm(t('dir.clearRecentConfirm'))) {
+  const handleClearRecent = async () => {
+    const ok = await confirm(t('dir.clearRecentConfirm'), { title: t('dir.clearRecent') });
+    if (ok) {
       props.onClearRecent?.();
     }
   };
