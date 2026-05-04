@@ -220,6 +220,12 @@ const App: Component = () => {
     refreshDirectoryTree();
   };
 
+  const handleOutlineReorder = (from: number, to: number) => {
+    if ((window as any).__editorReorderHeadings) {
+      (window as any).__editorReorderHeadings(from, to);
+    }
+  };
+
   const handleHeadingClick = (lineNumber: number, headingText?: string) => {
     if ((window as any).__editorJumpToLine) {
       (window as any).__editorJumpToLine(lineNumber, headingText);
@@ -324,6 +330,7 @@ const App: Component = () => {
         onClearRecent={handleClearRecent}
         onNewFile={handleNewFile}
         onTreeRefresh={handleTreeRefresh}
+        onOutlineReorder={handleOutlineReorder}
       />
       <div class="main-content" classList={{ 'with-sidebar': sidebarVisible() }}>
         <Editor 

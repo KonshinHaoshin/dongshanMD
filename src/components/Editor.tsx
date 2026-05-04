@@ -19,10 +19,12 @@ import { exportFile, ExportProgressCallback } from '../utils/exportUtils';
 import { highlightMarkdown } from '../utils/markdownHighlight';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { mkdir, writeFile } from '@tauri-apps/plugin-fs';
+import { marked } from 'marked';
 import { t, getLocale, setLocale } from '../utils/i18n';
+import * as echarts from 'echarts';
 
 type ViewMode = 'wysiwyg' | 'source';
-type ImagePasteMode = 'base64' | 'relative';
+type ImagePasteMode = 'base64' | 'relative' | 'absolute';
 
 interface MarkdownEditorHandle { getMarkdown(): string; setMarkdown(markdown: string): void; insertMarkdown(markdown: string): void; focus(): void; destroy(): void; }
 
@@ -37,6 +39,9 @@ interface SessionState { paths: string[]; activePath: string | null; }
 interface FormatCommand { id: string; label: string; mark: string; snippet?: string; before?: string; after?: string; fallback?: string; }
 
 const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result as string); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
+const isRenderableFile = (path: string | null) => { if (!path) return true; const l = path.toLowerCase(); return l.endsWith('.md') || l.endsWith('.markdown') || l.endsWith('.txt'); };
+const IMAGE_EXTENSIONS = new Set(['jpg','jpeg','png','gif','svg','bmp','webp','ico','tiff','tif']);
+const isImageFile = (path: string | null) => { if (!path) return false; const ext = path.split('.').pop()?.toLowerCase() || ''; return IMAGE_EXTENSIONS.has(ext); };
 const getFileBaseName = (filePath: string) => { const parts = filePath.split(/[/\\]/); const name = parts[parts.length - 1] || 'document'; return name.replace(/\.[^/.]+$/, '') || 'document'; };
 const getFileDir = (filePath: string) => filePath.replace(/[\\/][^\\/]*$/, '');
 const getTabName = (doc: TabDoc) => { if (!doc.path) return t('file.unnamed'); const parts = doc.path.split(/[/\\]/); return parts[parts.length - 1] || t('file.unnamed'); };
@@ -45,11 +50,15 @@ const getWords = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 const getLines = (t: string) => (t ? t.split('\n').length : 0);
 const readSessionState = (): SessionState | null => { try { const raw = localStorage.getItem(SESSION_TABS_KEY); return raw ? JSON.parse(raw) as SessionState : null; } catch { return null; } };
 const writeSessionState = (state: SessionState) => { try { localStorage.setItem(SESSION_TABS_KEY, JSON.stringify(state)); } catch { /* ignore */ } };
+const generateToc = (md: string) => { const hs = md.split('\n').filter(l => /^#{1,6}\s/.test(l.trim())); if (!hs.length) return '<!-- No headings found -->'; return hs.map(l => { const m = l.trim().match(/^(#{1,6})\s+(.+)$/); if (!m) return ''; const level = m[1].length - 1; const text = m[2].trim(); const anchor = text.toLowerCase().replace(/[^\w\u4e00-\u9fff]+/g, '-').replace(/^-+|-+$/g, ''); return `${'  '.repeat(level)}- [${text}](#${anchor})`; }).join('\n'); };
+const getTaskStats = (md: string) => { const items = md.split('\n').filter(l => /^\s*[-*+]\s*\[[ x]\]/i.test(l)); const total = items.length; const done = items.filter(l => /^\s*[-*+]\s*\[x\]/i.test(l)).length; return { done, total }; };
 
 const createMilkdownHandle = async (root: HTMLElement, initialMarkdown: string, onMarkdownChange: (md: string) => void): Promise<MarkdownEditorHandle> => {
     let latest = initialMarkdown;
     const editor = await MilkdownEditor.make().config((ctx) => { ctx.set(rootCtx, root); ctx.set(defaultValueCtx, initialMarkdown); ctx.get(listenerCtx).markdownUpdated((_ctx, md) => { latest = md; onMarkdownChange(md); }); }).use(commonmark).use(gfm).use(history).use(clipboard).use(listener).use(trailing).use(math).use(diagram).use(prism).create();
-    return { getMarkdown() { try { latest = editor.action(getMarkdown()); } catch {} return latest; }, setMarkdown(md: string) { latest = md; editor.action(replaceAll(md, true)); }, insertMarkdown(md: string) { editor.action(insert(md)); latest = editor.action(getMarkdown()); onMarkdownChange(latest); }, focus() { root.querySelector<HTMLElement>('.ProseMirror')?.focus(); }, destroy() { editor.destroy(); } };
+    const pm = root.querySelector('.ProseMirror') as HTMLElement | null;
+    if (pm) pm.spellcheck = true;
+    return { getMarkdown() { try { latest = editor.action(getMarkdown()); } catch {} return latest; }, setMarkdown(md: string) { latest = md; editor.action(replaceAll(md, true)); const pm = root.querySelector('.ProseMirror') as HTMLElement | null; if (pm) pm.spellcheck = true; }, insertMarkdown(md: string) { editor.action(insert(md)); latest = editor.action(getMarkdown()); onMarkdownChange(latest); }, focus() { root.querySelector<HTMLElement>('.ProseMirror')?.focus(); }, destroy() { editor.destroy(); } };
 };
 
 const applyTheme = (theme: string) => { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme); };
@@ -65,6 +74,8 @@ const Editor: Component<EditorProps> = (props) => {
     let isProgrammaticChange = false;
     let lastRequestedPath: string | null = null;
     let isRestoringSession = false;
+    let customCssStyle: HTMLStyleElement | null = null;
+    let echartsViews: Map<string, { chart: any; container: HTMLElement }> = new Map();
     const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     const [viewMode, setViewMode] = createSignal<ViewMode>('wysiwyg');
@@ -90,6 +101,14 @@ const Editor: Component<EditorProps> = (props) => {
     const [showPalette, setShowPalette] = createSignal(false);
     const [paletteSearch, setPaletteSearch] = createSignal('');
     const [showHelp, setShowHelp] = createSignal(false);
+    const [customCss, setCustomCss] = createSignal(localStorage.getItem('customCss') || '');
+    const [showHistory, setShowHistory] = createSignal(false);
+    const [showGlobalSearch, setShowGlobalSearch] = createSignal(false);
+    const [globalSearchTerm, setGlobalSearchTerm] = createSignal('');
+    const [globalSearchResults, setGlobalSearchResults] = createSignal<{tabIndex: number; line: number; text: string}[]>([]);
+    const [isTypewriter, setIsTypewriter] = createSignal(false);
+    const [showTemplates, setShowTemplates] = createSignal(false);
+    const [templates, setTemplates] = createSignal<{name: string; content: string}[]>([]);
 
     const doc = () => tabs()[activeTab()] || tabs()[0];
     const mk = () => doc().content;
@@ -167,6 +186,7 @@ const Editor: Component<EditorProps> = (props) => {
         persistActiveEditorContent();
         const d = tabs()[i];
         setActiveTab(i);
+        if (isRenderableFile(d.path)) setViewMode('wysiwyg'); else setViewMode('source');
         applyDocumentToEditor(d);
     };
 
@@ -196,6 +216,44 @@ const Editor: Component<EditorProps> = (props) => {
         const current = activeTab();
         const activeContent = currentTabs[current] && viewMode() === 'wysiwyg' && editorHandle ? editorHandle.getMarkdown() : currentTabs[current]?.content;
         return currentTabs.some((tab, index) => (index === current ? activeContent : tab.content) !== tab.savedContent);
+    };
+
+    const DEFAULT_TEMPLATES = [
+        { name: '会议纪要', content: '# 会议纪要\n\n**日期**：\n**参会人**：\n**主题**：\n\n## 议程\n\n- \n\n## 讨论内容\n\n\n## 决议\n\n- \n\n## 待办事项\n\n- [ ] ' },
+        { name: '周报', content: '# 周报\n\n**时间**：\n**姓名**：\n\n## 本周完成\n\n- \n\n## 下周计划\n\n- \n\n## 遇到的问题\n\n' },
+        { name: 'README', content: '# 项目名称\n\n## 简介\n\n简短描述项目是做什么的。\n\n## 安装\n\n```bash\nnpm install\n```\n\n## 使用\n\n```bash\nnpm start\n```\n\n## 许可证\n\nMIT' },
+        { name: '技术文档', content: '# 标题\n\n## 概述\n\n## 快速开始\n\n### 环境要求\n\n- \n\n### 安装步骤\n\n1. \n\n## API 文档\n\n| 参数 | 类型 | 说明 |\n|------|------|------|\n|      |      |      |\n\n## FAQ\n\n' },
+    ];
+
+    const loadTemplates = () => {
+        const userTemplates = (() => { try { return JSON.parse(localStorage.getItem('dongshan_templates') || '[]'); } catch { return []; } })();
+        const merged = [...DEFAULT_TEMPLATES];
+        userTemplates.forEach((ut: {name: string; content: string}) => {
+            const idx = merged.findIndex(t => t.name === ut.name);
+            if (idx >= 0) merged[idx] = ut; else merged.push(ut);
+        });
+        return merged;
+    };
+
+    const saveTemplate = () => {
+        const name = window.prompt(t('template.savePrompt'));
+        if (!name) return;
+        const existing = loadTemplates();
+        const idx = existing.findIndex((t: { name: string }) => t.name === name);
+        const entry = { name, content: mk() };
+        if (idx >= 0) existing[idx] = entry; else existing.push(entry);
+        localStorage.setItem('dongshan_templates', JSON.stringify(existing));
+    };
+
+    const handleNewFromTemplate = () => { setTemplates(loadTemplates()); setShowTemplates(true); };
+
+    const applyTemplate = (content: string) => {
+        setShowTemplates(false);
+        handleNewTab();
+        setTimeout(() => {
+            if (viewMode() === 'wysiwyg' && editorHandle) { isProgrammaticChange = true; editorHandle.setMarkdown(content); isProgrammaticChange = false; }
+            upd({ content });
+        }, 50);
     };
 
     const handleNewTab = () => {
@@ -269,6 +327,7 @@ const Editor: Component<EditorProps> = (props) => {
         { id: 'orderedList', label: t('format.orderedList'), mark: '1. List', snippet: '1. 列表项\n' },
         { id: 'taskList', label: t('format.taskList'), mark: '[ ]', snippet: '- [ ] 待办事项\n' },
         { id: 'table', label: t('format.table'), mark: 'Table', snippet: '| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |\n' },
+        { id: 'toc', label: t('format.toc'), mark: 'TOC', snippet: generateToc(mk()) },
     ];
 
     const applyFormatCommand = (command: FormatCommand) => {
@@ -313,6 +372,15 @@ const Editor: Component<EditorProps> = (props) => {
     const loadFileFromPath = async (filePath: string) => {
         const p = filePath.trim().replace(/^["']|["']$/g, '');
         if (!p) return;
+        if (isImageFile(p)) {
+            const ei = tabs().findIndex(t => t.path === p);
+            if (ei >= 0) { switchActiveTab(ei); return; }
+            if (fp() || mk() !== svd()) { persistActiveEditorContent(); createTab({ path: null, content: DEFAULT_MARKDOWN, savedContent: DEFAULT_MARKDOWN }); }
+            upd({ path: p, content: p, savedContent: p });
+            setErrorMessage('');
+            props.onFilePathChange?.(p);
+            return;
+        }
         const ei = tabs().findIndex(t => t.path === p);
         if (ei >= 0) { switchActiveTab(ei); return; }
         if (fp() || mk() !== svd()) {
@@ -324,6 +392,7 @@ const Editor: Component<EditorProps> = (props) => {
             const c = await readTextFile(p);
             upd({ path: p, content: c, savedContent: c });
             setLoadedDocument(c, p);
+            if (isRenderableFile(p)) setViewMode('wysiwyg'); else setViewMode('source');
         } catch { setErrorMessage(t('file.loadFailed')); }
     };
 
@@ -340,7 +409,8 @@ const Editor: Component<EditorProps> = (props) => {
         return r ? convertFileSrc(r) : null;
     };
 
-    const fixWysiwygImages = () => { if (!milkdownRoot) return; const b = fp(); setTimeout(() => { milkdownRoot?.querySelectorAll('img').forEach(img => { const o = img.getAttribute('data-original-src') || img.getAttribute('src') || ''; const cnv = resolveLocalImageSrc(o, b); if (cnv && img.src !== cnv) { img.setAttribute('data-original-src', o); img.src = cnv; } }); }, 50); };
+    let imageFixTimer: ReturnType<typeof setTimeout> | undefined;
+    const fixWysiwygImages = () => { if (!milkdownRoot) return; const b = fp(); clearTimeout(imageFixTimer); imageFixTimer = setTimeout(() => { milkdownRoot?.querySelectorAll('img').forEach(img => { const o = img.getAttribute('data-original-src') || img.getAttribute('src') || ''; const cnv = resolveLocalImageSrc(o, b); if (cnv && img.src !== cnv) { img.setAttribute('data-original-src', o); img.src = cnv; } }); }, 100); };
 
     let floatingBtn: HTMLButtonElement | null = null;
     let lastPre: HTMLElement | null = null;
@@ -405,18 +475,104 @@ const Editor: Component<EditorProps> = (props) => {
         const p = fp(); if (!p) { insertMarkdownAtCursor(`![${file.name || 'image'}](${await readFileAsDataUrl(file)})`); return; }
         const dir = getFileDir(p); const bn = getFileBaseName(p); const fld = `${dir}\\${bn}`; await mkdir(fld, { recursive: true });
         const fn = file.name && file.name !== 'image.png' ? file.name : `image-${Date.now()}.${(file.type.split('/')[1] || 'png').replace(/[^a-z0-9]+/gi, '')}`;
-        await writeFile(`${fld}\\${fn}`, new Uint8Array(await file.arrayBuffer()));
-        insertMarkdownAtCursor(`![${file.name || fn}](${(bn + '/' + fn).replace(/\\/g, '/')})`);
+        const absPath = `${fld}\\${fn}`;
+        await writeFile(absPath, new Uint8Array(await file.arrayBuffer()));
+        if (imagePasteMode() === 'absolute') {
+          insertMarkdownAtCursor(`![${file.name || fn}](${absPath})`);
+        } else {
+          insertMarkdownAtCursor(`![${file.name || fn}](${(bn + '/' + fn).replace(/\\/g, '/')})`);
+        }
     };
 
     const handlePasteEvent = async (e: ClipboardEvent) => { const items = e.clipboardData?.items; if (!items) return; const img = Array.from(items).find(it => it.type.startsWith('image/')); if (!img) return; const f = img.getAsFile(); if (!f) return; e.preventDefault(); try { await handleImageInsert(f); } catch (err) { setErrorMessage(`${t('image.pasteFailed')}：${err instanceof Error ? err.message : String(err)}`); } };
     const handleDropEvent = async (e: DragEvent) => { const imgs = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/')); if (!imgs.length) return; e.preventDefault(); try { for (const f of imgs) await handleImageInsert(f); } catch (err) { setErrorMessage(`${t('image.dropFailed')}：${err instanceof Error ? err.message : String(err)}`); } };
     const handleDragOver = (e: DragEvent) => { e.preventDefault(); };
 
-    const switchViewMode = (m: ViewMode) => { if (viewMode() === m) return; if (viewMode() === 'wysiwyg') syncFromWysiwyg(); else syncSourceToWysiwyg(); setViewMode(m); setTimeout(() => { if (m === 'source') sourceTextArea?.focus(); else { editorHandle?.focus(); fixWysiwygImages(); } }, 0); };
+    const switchViewMode = (m: ViewMode) => { if (viewMode() === m) return; if (m === 'wysiwyg' && !isRenderableFile(fp())) return; if (viewMode() === 'wysiwyg') syncFromWysiwyg(); else syncSourceToWysiwyg(); setViewMode(m); setTimeout(() => { if (m === 'source') sourceTextArea?.focus(); else { editorHandle?.focus(); fixWysiwygImages(); } }, 0); };
 
-    const handleOpenFile = async () => { try { const r = await openFile(); if (r) loadFileFromPath(r.path); } catch { setErrorMessage(t('file.loadFailed')); } };
-    const handleSaveFile = async () => { try { const c = viewMode() === 'source' ? syncSourceToWysiwyg() : syncFromWysiwyg(); const p = fp(); if (p) { await saveToFile(p, c); upd({ savedContent: c }); clearAutoSaveTimer(p); setErrorMessage(''); return; } const sp = await saveFile(c); if (sp) { upd({ path: sp, savedContent: c }); clearAutoSaveTimer(sp); setErrorMessage(''); props.onFilePathChange?.(sp); fixWysiwygImages(); } } catch { setErrorMessage(t('file.saveFailed')); } };
+    const handleOpenFile = async () => { try { const r = await openFile(); if (!r) return; if (isImageFile(r.path)) { loadFileFromPath(r.path); return; } if (r.content) loadFileFromPathViaContent(r.path, r.content); } catch { setErrorMessage(t('file.loadFailed')); } };
+
+    const loadFileFromPathViaContent = (p: string, c: string) => {
+        const ei = tabs().findIndex(t => t.path === p);
+        if (ei >= 0) { switchActiveTab(ei); return; }
+        if (fp() || mk() !== svd()) { persistActiveEditorContent(); createTab({ path: null, content: DEFAULT_MARKDOWN, savedContent: DEFAULT_MARKDOWN }); }
+        upd({ path: p, content: c, savedContent: c });
+        setLoadedDocument(c, p);
+        if (isRenderableFile(p)) setViewMode('wysiwyg'); else setViewMode('source');
+    };
+    const handlePrint = () => {
+        const c = viewMode() === 'source' ? syncSourceToWysiwyg() : syncFromWysiwyg();
+        const w = window.open('', '_blank');
+        if (!w) return;
+        const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + (getTabName(doc())) + '</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.8;color:#333}pre{background:#f5f5f5;padding:16px;border-radius:6px;overflow:auto}code{font-family:monospace;font-size:0.9em}blockquote{border-left:4px solid #ddd;margin:1em 0;padding:0.2em 1em;color:#666}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px}@media print{body{max-width:none}}</style></head><body>' + marked(c) + '</body></html>';
+        w.document.write(html); w.document.close();
+        setTimeout(() => w.print(), 300);
+    };
+
+    const historyKey = (p: string | null) => p ? 'dongshan_history_' + btoa(encodeURIComponent(p)).replace(/[+/=]/g, '') : null;
+
+    const saveToHistory = (content: string, path: string | null) => {
+        const k = historyKey(path); if (!k) return;
+        try {
+            const existing = JSON.parse(localStorage.getItem(k) || '[]') as {time: number; content: string}[];
+            existing.unshift({ time: Date.now(), content });
+            if (existing.length > 30) existing.length = 30;
+            localStorage.setItem(k, JSON.stringify(existing));
+        } catch {}
+    };
+
+    const loadHistory = (path: string | null) => {
+        const k = historyKey(path); if (!k) return [];
+        try { return JSON.parse(localStorage.getItem(k) || '[]') as {time: number; content: string}[]; } catch { return []; }
+    };
+
+    const handleSave = async () => {
+        try {
+            const c = viewMode() === 'source' ? syncSourceToWysiwyg() : syncFromWysiwyg();
+            const p = fp();
+            if (p) { await saveToFile(p, c); upd({ savedContent: c }); clearAutoSaveTimer(p); saveToHistory(c, p); setErrorMessage(''); return; }
+            const sp = await saveFile(c);
+            if (sp) { upd({ path: sp, savedContent: c }); clearAutoSaveTimer(sp); saveToHistory(c, sp); setErrorMessage(''); props.onFilePathChange?.(sp); fixWysiwygImages(); }
+        } catch { setErrorMessage(t('file.saveFailed')); }
+    };
+
+    const handleRestoreHistory = (content: string) => {
+        if (viewMode() === 'wysiwyg' && editorHandle) { isProgrammaticChange = true; editorHandle.setMarkdown(content); isProgrammaticChange = false; }
+        upd({ content, savedContent: content }); triggerAutoSave();
+        setShowHistory(false);
+    };
+
+    const performGlobalSearch = () => {
+        const term = globalSearchTerm().toLowerCase();
+        if (!term) { setGlobalSearchResults([]); return; }
+        const results: {tabIndex: number; line: number; text: string}[] = [];
+        tabs().forEach((tab, ti) => {
+            tab.content.split('\n').forEach((line, li) => {
+                if (line.toLowerCase().includes(term)) results.push({ tabIndex: ti, line: li + 1, text: line.trim().slice(0, 80) });
+            });
+        });
+        setGlobalSearchResults(results);
+    };
+
+    const renderEChartsBlocks = () => {
+        if (!milkdownRoot) return;
+        const pres = milkdownRoot.querySelectorAll('.ProseMirror pre[data-language="echarts"]');
+        pres.forEach(pre => {
+            const code = pre.querySelector('code');
+            if (!code) return;
+            const id = code.textContent || '';
+            if (echartsViews.has(id)) return;
+            const container = document.createElement('div');
+            container.style.cssText = 'width:100%;min-height:300px;margin-top:8px;';
+            pre.appendChild(container);
+            try {
+                const chart = echarts.init(container);
+                const option = JSON.parse(code.textContent || '{}');
+                chart.setOption(option);
+                echartsViews.set(id, { chart, container });
+            } catch {}
+        });
+    };
     const handleSaveAs = async () => { try { const c = viewMode() === 'source' ? syncSourceToWysiwyg() : syncFromWysiwyg(); const oldPath = fp(); const sp = await saveFile(c, oldPath || undefined); if (sp) { clearAutoSaveTimer(oldPath); upd({ path: sp, savedContent: c }); clearAutoSaveTimer(sp); setErrorMessage(''); props.onFilePathChange?.(sp); fixWysiwygImages(); } } catch { setErrorMessage(t('file.saveAsFailed')); } };
 
     const handleExport = async (fmt: 'word' | 'pdf' | 'png' | 'html') => {
@@ -430,20 +586,23 @@ const Editor: Component<EditorProps> = (props) => {
     const handleReplace = () => { const r = searchResults(); if (!r.length) return; const i = searchIndex() - 1; const nc = mk().slice(0, r[i]) + replaceTerm() + mk().slice(r[i] + searchTerm().length); if (viewMode() === 'source') upd({ content: nc }); else if (editorHandle) { isProgrammaticChange = true; editorHandle.setMarkdown(nc); isProgrammaticChange = false; upd({ content: nc }); } triggerAutoSave(); setSearchVisible(false); };
     const handleReplaceAll = () => { const tm = searchTerm(); if (!tm) return; const escaped = tm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); const nc = mk().replace(new RegExp(escaped, 'gi'), replaceTerm()); if (viewMode() === 'source') upd({ content: nc }); else if (editorHandle) { isProgrammaticChange = true; editorHandle.setMarkdown(nc); isProgrammaticChange = false; upd({ content: nc }); } triggerAutoSave(); setSearchVisible(false); };
 
-    const cmdList = () => { const q = paletteSearch().toLowerCase(); const all = [{ id: 'new', label: t('tab.new'), act: handleNewTab }, { id: 'open', label: t('file.open'), act: handleOpenFile }, { id: 'save', label: t('file.save'), act: handleSaveFile }, { id: 'saveAs', label: t('file.saveAs'), act: handleSaveAs }, { id: 'closeCurrent', label: t('tab.closeCurrent'), act: closeCurrentTab }, { id: 'closeOthers', label: t('tab.closeOthers'), act: closeOtherTabs }, { id: 'closeAll', label: t('tab.closeAll'), act: closeAllTabs }, { id: 'mode', label: viewMode() === 'wysiwyg' ? '切换到源码模式' : '切换到所见即所得', act: () => switchViewMode(viewMode() === 'wysiwyg' ? 'source' : 'wysiwyg') }, { id: 'focus', label: isFocusMode() ? t('focus.exit') : t('focus.enter'), act: () => setIsFocusMode(!isFocusMode()) }, { id: 'search', label: t('search.find'), act: () => setSearchVisible(true) }, { id: 'settings', label: t('settings.title'), act: () => setShowSettings(true) }, ...formatCommands().map(command => ({ id: command.id, label: command.label, act: () => applyFormatCommand(command) }))]; return q ? all.filter(c => c.label.toLowerCase().includes(q) || c.id.includes(q)) : all; };
+    const cmdList = () => { const q = paletteSearch().toLowerCase(); const all = [{ id: 'new', label: t('tab.new'), act: handleNewTab }, { id: 'open', label: t('file.open'), act: handleOpenFile }, { id: 'save', label: t('file.save'), act: handleSave }, { id: 'saveAs', label: t('file.saveAs'), act: handleSaveAs }, { id: 'closeCurrent', label: t('tab.closeCurrent'), act: closeCurrentTab }, { id: 'closeOthers', label: t('tab.closeOthers'), act: closeOtherTabs }, { id: 'closeAll', label: t('tab.closeAll'), act: closeAllTabs }, { id: 'mode', label: viewMode() === 'wysiwyg' ? '切换到源码模式' : '切换到所见即所得', act: () => switchViewMode(viewMode() === 'wysiwyg' ? 'source' : 'wysiwyg') }, { id: 'focus', label: isFocusMode() ? t('focus.exit') : t('focus.enter'), act: () => setIsFocusMode(!isFocusMode()) }, { id: 'search', label: t('search.find'), act: () => setSearchVisible(true) }, { id: 'settings', label: t('settings.title'), act: () => setShowSettings(true) }, ...formatCommands().map(command => ({ id: command.id, label: command.label, act: () => applyFormatCommand(command) }))]; return q ? all.filter(c => c.label.toLowerCase().includes(q) || c.id.includes(q)) : all; };
 
     const handleKeyDown = (e: KeyboardEvent) => {
         const el = document.activeElement;
-        if (el?.closest('.search-row, .command-palette-input') || el?.tagName === 'INPUT' || el?.tagName === 'SELECT') return;
-        if (e.key === 'Escape') { setSearchVisible(false); setShowPalette(false); setIsFocusMode(false); setShowHelp(false); return; }
+        if (el?.closest('.search-row, .command-palette-input, .global-search, .history-dialog') || el?.tagName === 'INPUT' || el?.tagName === 'SELECT') return;
+        if (e.key === 'Escape') { setSearchVisible(false); setShowPalette(false); setIsFocusMode(false); setShowHelp(false); setShowHistory(false); setShowGlobalSearch(false); return; }
         if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) { e.preventDefault(); return; }
         if (e.key === 'F11') { e.preventDefault(); setIsFocusMode(!isFocusMode()); return; }
         if (e.key === 'F1') { e.preventDefault(); setShowHelp(true); return; }
         if (e.ctrlKey && e.shiftKey && (e.key === 'P' || e.key === 'p')) { e.preventDefault(); setShowPalette(true); setTimeout(() => commandInput?.focus(), 50); return; }
+        if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); setShowGlobalSearch(!showGlobalSearch()); return; }
+        if (e.ctrlKey && e.shiftKey && (e.key === 'H' || e.key === 'h')) { e.preventDefault(); setShowHistory(!showHistory()); return; }
+        if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); handlePrint(); return; }
         if (e.ctrlKey && e.key === '/') { e.preventDefault(); switchViewMode(viewMode() === 'wysiwyg' ? 'source' : 'wysiwyg'); return; }
         if (e.ctrlKey && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); handleNewTab(); return; }
         if (e.ctrlKey && (e.key === 'o' || e.key === 'O')) { e.preventDefault(); handleOpenFile(); return; }
-        if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); handleSaveFile(); return; }
+        if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); handleSave(); return; }
         if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); setSearchVisible(true); return; }
     };
 
@@ -467,6 +626,10 @@ const Editor: Component<EditorProps> = (props) => {
     onMount(() => {
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('beforeunload', handleBeforeUnload);
+        customCssStyle = document.createElement('style');
+        customCssStyle.id = 'dongshan-custom-css';
+        customCssStyle.textContent = customCss();
+        document.head.appendChild(customCssStyle);
         ensureFloatingBtn();
         if (milkdownRoot) {
             milkdownRoot.addEventListener('paste', handlePasteEvent); milkdownRoot.addEventListener('drop', handleDropEvent); milkdownRoot.addEventListener('dragover', handleDragOver);
@@ -476,27 +639,45 @@ const Editor: Component<EditorProps> = (props) => {
                 .catch(() => setErrorMessage(t('editor.initFailed')));
         }
     });
-    onCleanup(() => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('beforeunload', handleBeforeUnload); autoSaveTimers.forEach(timer => clearTimeout(timer)); autoSaveTimers.clear(); if (milkdownRoot) { milkdownRoot.removeEventListener('paste', handlePasteEvent); milkdownRoot.removeEventListener('drop', handleDropEvent); milkdownRoot.removeEventListener('dragover', handleDragOver); milkdownRoot.removeEventListener('mousemove', onEditorMouseMove); } editorHandle?.destroy(); if (floatingBtn) { floatingBtn.remove(); floatingBtn = null; } });
+    onCleanup(() => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('beforeunload', handleBeforeUnload); clearTimeout(imageFixTimer); autoSaveTimers.forEach(timer => clearTimeout(timer)); autoSaveTimers.clear(); if (customCssStyle) { customCssStyle.remove(); customCssStyle = null; } if (milkdownRoot) { milkdownRoot.removeEventListener('paste', handlePasteEvent); milkdownRoot.removeEventListener('drop', handleDropEvent); milkdownRoot.removeEventListener('dragover', handleDragOver); milkdownRoot.removeEventListener('mousemove', onEditorMouseMove); } editorHandle?.destroy(); if (floatingBtn) { floatingBtn.remove(); floatingBtn = null; } echartsViews.forEach(v => v.chart.dispose()); echartsViews.clear(); });
     createEffect(() => { const p = props.initialFilePath; if (!p || p === loadedInitialPath || p === lastRequestedPath) return; lastRequestedPath = p; if (isEditorReady()) { loadedInitialPath = p; loadFileFromPath(p); } });
     createEffect(() => { const renamed = props.renamedFile; if (!renamed) return; const index = tabs().findIndex(tab => tab.path === renamed.oldPath); if (index < 0) return; updateTab(index, { path: renamed.newPath }); clearAutoSaveTimer(renamed.oldPath); if (index === activeTab()) props.onFilePathChange?.(renamed.newPath); });
     createEffect(() => { if (progressBarElement) progressBarElement.style.width = `${exportProgress()}%`; });
     createEffect(() => { (window as any).__editorJumpToLine = jumpToLine; });
+    createEffect(() => { (window as any).__editorReorderHeadings = (from: number, to: number) => {
+        const c = mk();
+        const lines = c.split('\n');
+        const blocks: { start: number; end: number }[] = [];
+        let last = 0;
+        lines.forEach((l, i) => { if (/^#{1,6}\s/.test(l.trim())) { if (i > last) blocks.push({ start: last, end: i }); last = i; } });
+        blocks.push({ start: last, end: lines.length });
+        if (from >= blocks.length || to >= blocks.length) return;
+        const [block] = blocks.splice(from, 1);
+        blocks.splice(to, 0, block);
+        const newLines = blocks.flatMap(b => lines.slice(b.start, b.end));
+        const nc = newLines.join('\n');
+        if (viewMode() === 'wysiwyg' && editorHandle) { isProgrammaticChange = true; editorHandle.setMarkdown(nc); isProgrammaticChange = false; }
+        upd({ content: nc }); triggerAutoSave();
+    }; });
     createEffect(() => { mk(); if (viewMode() === 'wysiwyg') fixWysiwygImages(); });
-    createEffect(() => { mk(); if (viewMode() === 'wysiwyg') fixWysiwygImages(); });
+    createEffect(() => { if (customCssStyle) customCssStyle.textContent = customCss(); });
+    createEffect(() => { if (viewMode() === 'wysiwyg' && isEditorReady()) setTimeout(() => renderEChartsBlocks(), 200); });
     createEffect(() => { if (!sessionReady() || isRestoringSession) return; writeSessionState({ paths: tabs().map(tab => tab.path).filter((path): path is string => Boolean(path)), activePath: fp() }); });
 
-    const sc = [['Ctrl+N', t('tab.new')], ['Ctrl+O', t('file.open')], ['Ctrl+S', t('file.save')], ['Ctrl+F', t('search.find')], ['Ctrl+/', t('hotkey.wysiwyg')], ['Ctrl+Shift+P', t('command.palette')], ['F11', t('focus.enter')], ['F1', t('help.title')], ['Esc', '关闭弹窗']];
+    const sc = [['Ctrl+N', t('tab.new')], ['Ctrl+O', t('file.open')], ['Ctrl+S', t('file.save')], ['Ctrl+P', t('print.command')], ['Ctrl+F', t('search.find')], ['Ctrl+Shift+F', t('globalSearch.title')], ['Ctrl+Shift+H', t('history.title')], ['Ctrl+/', t('hotkey.wysiwyg')], ['Ctrl+Shift+P', t('command.palette')], ['F11', t('focus.enter')], ['F1', t('help.title')], ['Esc', '关闭弹窗']];
 
     return (
-        <div class="editor-container" classList={{ 'focus-mode': isFocusMode() }} style={{ position: 'relative' }}>
+        <div class="editor-container" classList={{ 'focus-mode': isFocusMode(), 'typewriter-mode': isTypewriter() }} style={{ position: 'relative' }}>
             <Show when={!isFocusMode()}>
                 <div class="editor-header">
                     <div class="header-left"><h1>{t('app.title')}</h1><Show when={errorMessage()}><span class="editor-error">{errorMessage()}</span></Show></div>
                     <div class="header-right">
                         <div class="file-actions">
                             <button class="file-btn" onClick={handleNewTab} title={t('tab.new')}>{t('tab.new')}</button>
+                            <button class="file-btn" onClick={handleNewFromTemplate} title={t('template.title')}>{t('template.title')}</button>
+                            <button class="file-btn" onClick={saveTemplate} title={t('template.saveAs')}>{t('template.saveAs')}</button>
                             <button class="file-btn" onClick={handleOpenFile} title={t('file.openTitle')}>{t('file.open')}</button>
-                            <button class="file-btn" onClick={handleSaveFile} title={t('file.saveTitle')}>{t('file.save')}</button>
+                            <button class="file-btn" onClick={handleSave} title={t('file.saveTitle')}>{t('file.save')}</button>
                             <button class="file-btn" onClick={handleSaveAs} title={t('file.saveAsTitle')}>{t('file.saveAs')}</button>
                             <button class="file-btn" onClick={closeCurrentTab} title={t('tab.closeCurrent')}>{t('tab.close')}</button>
                             <div class="export-menu-container">
@@ -533,20 +714,30 @@ const Editor: Component<EditorProps> = (props) => {
             </Show>
 
             <div class="editor-body">
-                <div ref={milkdownRoot} class={`milkdown-host ${viewMode() === 'wysiwyg' ? 'active' : 'hidden'}`} />
-                <Show when={viewMode() === 'source'}>
-                    <div class="source-wrapper active">
-                        <pre ref={sourceHighlight} class="source-highlight" aria-hidden="true"><code innerHTML={highlightMarkdown(src() || ' ')} /></pre>
-                        <textarea ref={sourceTextArea} class="source-editor" value={src()} spellcheck={false} onInput={(e) => { const c = e.currentTarget.value; upd({ content: c }); triggerAutoSave(); }} onScroll={syncSourceScroll} />
+                <Show when={isImageFile(fp())}>
+                    <div class="image-viewer">
+                        {(() => { const p = fp(); return p ? <img src={convertFileSrc(p)} alt={getTabName(doc())} /> : null; })()}
                     </div>
+                </Show>
+                <Show when={!isImageFile(fp())}>
+                    <div ref={milkdownRoot} class={`milkdown-host ${viewMode() === 'wysiwyg' ? 'active' : 'hidden'}`} />
+                    <Show when={viewMode() === 'source'}>
+                        <div class="source-wrapper active">
+                            <pre ref={sourceHighlight} class="source-highlight" aria-hidden="true"><code innerHTML={highlightMarkdown(src() || ' ')} /></pre>
+                            <textarea ref={sourceTextArea} class="source-editor" value={src()} spellcheck={true} onInput={(e) => { const c = e.currentTarget.value; upd({ content: c }); triggerAutoSave(); }} onScroll={syncSourceScroll} />
+                        </div>
+                    </Show>
                 </Show>
             </div>
 
             <div class="editor-statusbar">
                 <span class="status-item">{t('status.words', { n: getWords(mk()) })}</span><span class="status-sep">|</span>
                 <span class="status-item">{t('status.lines', { n: getLines(mk()) })}</span><span class="status-sep">|</span>
-                <span class="status-item">{t('status.chars', { n: mk().length })}</span><span class="status-sep">|</span>
-                <span class="status-item">{viewMode() === 'wysiwyg' ? 'WYSIWYG' : 'Source'}</span>
+                <span class="status-item">{t('status.chars', { n: mk().length })}</span>
+                {(() => { const s = getTaskStats(mk()); return s.total ? <><span class="status-sep">|</span><span class="status-item">{t('typing.stats', { done: s.done, total: s.total })}</span></> : null; })()}
+                <span class="status-sep">|</span>
+                <span class="status-item">{!isRenderableFile(fp()) ? 'Plain text' : viewMode() === 'wysiwyg' ? 'WYSIWYG' : 'Source'}</span>
+                {isTypewriter() && <><span class="status-sep">|</span><span class="status-item">Typewriter</span></>}
                 {autoSaveEnabled() && fp() && <><span class="status-sep">|</span><span class="status-item">Auto</span></>}
             </div>
 
@@ -569,20 +760,87 @@ const Editor: Component<EditorProps> = (props) => {
                 </div>
             </Show>
 
+            <Show when={showTemplates()}>
+                <div class="command-overlay" onClick={() => setShowTemplates(false)}>
+                    <div class="settings-dialog" onClick={(e) => e.stopPropagation()} style={{ 'max-width': '400px' }}>
+                        <div class="settings-title">{t('template.title')}</div>
+                        <For each={templates()}>
+                            {(tmpl: {name: string; content: string}) => (
+                                <div class="search-result" onClick={() => applyTemplate(tmpl.content)} style={{ cursor: 'pointer' }}>
+                                    <div class="search-result-file">{tmpl.name}</div>
+                                    <div class="search-result-line">{tmpl.content.slice(0, 100)}</div>
+                                </div>
+                            )}
+                        </For>
+                        <Show when={templates().length === 0}>
+                            <div class="file-empty">{t('template.loadFailed')}</div>
+                        </Show>
+                        <div class="settings-actions" style={{ 'margin-top': '8px' }}><button class="file-btn" onClick={() => setShowTemplates(false)}>{t('settings.close')}</button></div>
+                    </div>
+                </div>
+            </Show>
+
             {isExporting() && <div class="export-progress-overlay"><div class="export-progress-dialog"><div class="export-progress-title">{t('export.progressTitle')}</div><div class="export-progress-bar-container"><div ref={progressBarElement} class="export-progress-bar" /></div><div class="export-progress-message">{exportMessage()}</div><div class="export-progress-percent">{exportProgress()}%</div></div></div>}
 
             {showSettings() && (
                 <div class="settings-overlay" onClick={closeSettings}>
                     <div class="settings-dialog" onClick={(e) => e.stopPropagation()}>
                         <div class="settings-title">{t('settings.title')}</div>
-                        <div class="settings-row"><div class="settings-label">{t('settings.imagePaste')}</div><select class="settings-select" value={imagePasteMode()} onChange={(e) => { const v = e.currentTarget.value as ImagePasteMode; setImagePasteMode(v); localStorage.setItem('imagePasteMode', v); }}><option value="base64">{t('settings.imagePaste.base64')}</option><option value="relative">{t('settings.imagePaste.relative')}</option></select></div>
+                        <div class="settings-row"><div class="settings-label">{t('settings.imagePaste')}</div><select class="settings-select" value={imagePasteMode()} onChange={(e) => { const v = e.currentTarget.value as ImagePasteMode; setImagePasteMode(v); localStorage.setItem('imagePasteMode', v); }}><option value="base64">{t('settings.imagePaste.base64')}</option><option value="relative">{t('settings.imagePaste.relative')}</option><option value="absolute">{t('settings.imagePaste.absolute')}</option></select></div>
                         <div class="settings-row"><div class="settings-label">{t('settings.autoSave')}</div><select class="settings-select" value={autoSaveEnabled() ? 'enabled' : 'disabled'} onChange={(e) => { const en = e.currentTarget.value === 'enabled'; setAutoSaveEnabled(en); localStorage.setItem('autoSave', String(en)); }}><option value="enabled">{t('settings.autoSaveEnabled')}</option><option value="disabled">{t('settings.autoSaveDisabled')}</option></select></div>
                         <div class="settings-row"><div class="settings-label">{t('settings.theme')}</div><select class="settings-select" value={currentTheme()} onChange={(e) => { const th = e.currentTarget.value; setCurrentTheme(th); applyTheme(th); }}><option value="light">{t('settings.theme.light')}</option><option value="dark">{t('settings.theme.dark')}</option></select></div>
                         <div class="settings-row"><div class="settings-label">{t('settings.language')}</div><select class="settings-select" value={getLocale()} onChange={(e) => setLocale(e.currentTarget.value as 'zh-CN' | 'en-US')}><option value="zh-CN">{t('settings.language.zh')}</option><option value="en-US">{t('settings.language.en')}</option></select></div>
+                        <div class="settings-row"><div class="settings-label">Typewriter</div><select class="settings-select" value={isTypewriter() ? 'on' : 'off'} onChange={(e) => setIsTypewriter(e.currentTarget.value === 'on')}><option value="off">Off</option><option value="on">On</option></select></div>
+                        <div class="settings-row"><div class="settings-label">{t('settings.customCss')}</div><textarea class="settings-textarea" placeholder={t('settings.customCssPlaceholder')} value={customCss()} onInput={(e) => { const v = e.currentTarget.value; setCustomCss(v); localStorage.setItem('customCss', v); }} rows={6} /></div>
                         <div class="settings-actions"><button class="file-btn" onClick={closeSettings}>{t('settings.close')}</button></div>
                     </div>
                 </div>
             )}
+
+            <Show when={showHistory()}>
+                <div class="command-overlay" onClick={() => setShowHistory(false)}>
+                    <div class="settings-dialog" onClick={(e) => e.stopPropagation()} style={{ 'max-width': '500px' }}>
+                        <div class="settings-title">{t('history.title')}</div>
+                        <div class="history-list">
+                            <Show when={(fp() ? loadHistory(fp()) : []).length === 0}>
+                                <div class="file-empty">{t('history.noVersions')}</div>
+                            </Show>
+                            <For each={fp() ? loadHistory(fp()) : []}>
+                                {(v: {time: number; content: string}) => (
+                                    <div class="history-item">
+                                        <span class="history-time">{new Date(v.time).toLocaleString()}</span>
+                                        <span class="history-preview">{v.content.slice(0, 60).replace(/\n/g, ' ')}</span>
+                                        <button class="file-btn" onClick={() => { if (window.confirm(t('history.restoreConfirm'))) handleRestoreHistory(v.content); }}>{t('history.restore')}</button>
+                                    </div>
+                                )}
+                            </For>
+                        </div>
+                        <div class="settings-actions" style={{ 'margin-top': '8px' }}><button class="file-btn" onClick={() => setShowHistory(false)}>{t('settings.close')}</button></div>
+                    </div>
+                </div>
+            </Show>
+
+            <Show when={showGlobalSearch()}>
+                <div class="command-overlay" onClick={() => setShowGlobalSearch(false)}>
+                    <div class="settings-dialog global-search" onClick={(e) => e.stopPropagation()}>
+                        <div class="settings-title">{t('globalSearch.title')}</div>
+                        <input class="workspace-search" type="text" placeholder={t('globalSearch.placeholder')} value={globalSearchTerm()} onInput={(e) => { setGlobalSearchTerm(e.currentTarget.value); performGlobalSearch(); }} autofocus />
+                        <div class="global-search-results">
+                            <Show when={globalSearchTerm() && globalSearchResults().length === 0}>
+                                <div class="file-empty">{t('globalSearch.noResults')}</div>
+                            </Show>
+                            <For each={globalSearchResults()}>
+                                {(r: {tabIndex: number; line: number; text: string}) => (
+                                    <div class="search-result" onClick={() => { switchActiveTab(r.tabIndex); setTimeout(() => { const c = tabs()[r.tabIndex]?.content || ''; const o = getLineStartOffset(c, r.line); if (viewMode() === 'source' && sourceTextArea) { sourceTextArea.focus(); sourceTextArea.setSelectionRange(o, o); } }, 100); setShowGlobalSearch(false); }}>
+                                        <div class="search-result-file">{getTabName(tabs()[r.tabIndex])}:{r.line}</div>
+                                        <div class="search-result-line">{r.text}</div>
+                                    </div>
+                                )}
+                            </For>
+                        </div>
+                    </div>
+                </div>
+            </Show>
         </div>
     );
 };

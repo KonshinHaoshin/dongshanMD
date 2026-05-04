@@ -448,3 +448,6 @@
 .outline-item.level-4 { padding-left: 38px; font-weight: 400; font-size: 12px; }
 .outline-item.level-5 { padding-left: 48px; font-weight: 400; font-size: 12px; }
 .outline-item.level-6 { padding-left: 58px; font-weight: 400; font-size: 12px; }
+
+.outline-item.dragging { opacity: 0.5; }
+.outline-item.drag-over { border-top: 2px solid var(--btn-active-bg); }

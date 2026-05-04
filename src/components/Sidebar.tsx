@@ -24,6 +24,7 @@ interface SidebarProps {
   onClearRecent?: () => void;
   onNewFile?: (filePath: string) => void;
   onTreeRefresh?: () => void;
+  onOutlineReorder?: (from: number, to: number) => void;
 }
 
 interface Heading {
@@ -303,12 +304,24 @@ const Sidebar: Component<SidebarProps> = (props) => {
                 <div class="outline-empty">&mdash;</div>
               </Show>
               <For each={headings()}>
-                {(heading) => (
+                {(heading, index) => (
                   <div
                     class="outline-item"
                     classList={{ [`level-${heading.level}`]: true }}
                     onClick={() => handleHeadingClick(heading)}
                     title={heading.text}
+                    draggable="true"
+                    onDragStart={(e) => { e.dataTransfer?.setData('text/plain', String(index())); (e.currentTarget as HTMLElement).classList.add('dragging'); }}
+                    onDragEnd={(e) => { (e.currentTarget as HTMLElement).classList.remove('dragging'); }}
+                    onDragOver={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.add('drag-over'); }}
+                    onDragLeave={(e) => { (e.currentTarget as HTMLElement).classList.remove('drag-over'); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLElement).classList.remove('drag-over');
+                      const from = parseInt(e.dataTransfer?.getData('text/plain') || '0');
+                      const to = index();
+                      if (from !== to && props.onOutlineReorder) props.onOutlineReorder(from, to);
+                    }}
                   >
                     <span class="outline-text">{heading.text}</span>
                   </div>
