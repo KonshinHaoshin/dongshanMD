@@ -3,19 +3,21 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #fff;
+    background: #f7f8fa;
+    color: #1f2933;
 }
 
 .editor-header {
-    padding: 8px 16px;
-    background: #fff;
-    border-bottom: 1px solid #e0e0e0;
+    padding: 10px 16px;
+    background: #ffffff;
+    border-bottom: 1px solid #dfe3ea;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    gap: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    z-index: 10;
 }
 
 .header-left {
@@ -28,23 +30,36 @@
 
 .header-left h1 {
     font-size: 14px;
-    font-weight: 500;
-    color: #666;
+    font-weight: 650;
+    color: #253047;
     margin: 0;
 }
 
 .file-name {
     font-size: 12px;
-    color: #888;
-    max-width: 240px;
+    color: #667085;
+    max-width: 260px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .modified-indicator {
-    color: #ff6b6b;
-    font-weight: bold;
+    color: #c2410c;
+    font-weight: 700;
+}
+
+.editor-error {
+    max-width: min(460px, 42vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #b42318;
+    background: #fff1f0;
+    border: 1px solid #ffccc7;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 12px;
 }
 
 .header-right {
@@ -59,44 +74,39 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-right: 12px;
+    margin-right: 8px;
     flex-wrap: wrap;
 }
 
-@media (max-width: 900px) {
-    .file-name {
-        max-width: 140px;
-    }
-    .header-right {
-        width: 100%;
-        justify-content: flex-start;
-    }
-    .file-actions {
-        margin-right: 0;
-    }
+.file-btn,
+.mode-btn,
+.export-menu-item {
+    font: inherit;
 }
 
 .file-btn {
-    padding: 4px 12px;
+    min-height: 30px;
+    padding: 5px 12px;
     font-size: 12px;
-    border: 1px solid #d0d0d0;
-    background: #fff;
-    color: #666;
+    border: 1px solid #cfd6e1;
+    background: #ffffff;
+    color: #344054;
     cursor: pointer;
     border-radius: 4px;
-    transition: all 0.2s;
-    display: flex;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
 }
 
 .file-btn:hover {
-    background: #f5f5f5;
-    border-color: #b0b0b0;
+    background: #f2f4f7;
+    border-color: #98a2b3;
 }
 
 .file-btn:active {
-    background: #e8e8e8;
+    background: #e4e7ec;
 }
 
 .export-menu-container {
@@ -105,73 +115,282 @@
 
 .export-menu {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 6px);
     right: 0;
-    margin-top: 4px;
-    background: #fff;
-    border: 1px solid #d0d0d0;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    background: #ffffff;
+    border: 1px solid #d0d5dd;
+    border-radius: 6px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
     z-index: 1000;
-    min-width: 150px;
+    min-width: 160px;
     overflow: hidden;
 }
 
 .export-menu-item {
     width: 100%;
-    padding: 8px 16px;
+    padding: 9px 14px;
     font-size: 12px;
     border: none;
-    background: #fff;
-    color: #666;
+    background: #ffffff;
+    color: #344054;
     cursor: pointer;
     text-align: left;
-    transition: background-color 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    transition: background-color 0.15s ease;
 }
 
 .export-menu-item:hover {
-    background: #f5f5f5;
-}
-
-.export-menu-item:active {
-    background: #e8e8e8;
+    background: #f2f4f7;
 }
 
 .export-menu-item:not(:last-child) {
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid #edf0f5;
 }
 
+.view-mode-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
 
-/* 导出进度覆盖层 */
+.mode-label {
+    font-size: 12px;
+    color: #667085;
+    margin-right: 2px;
+}
 
-.export-progress-overlay {
+.mode-btn {
+    min-height: 30px;
+    padding: 5px 12px;
+    font-size: 12px;
+    border: 1px solid #cfd6e1;
+    background: #ffffff;
+    color: #344054;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.mode-btn:hover {
+    background: #f2f4f7;
+    border-color: #98a2b3;
+}
+
+.mode-btn.active {
+    background: #1f5eff;
+    color: #ffffff;
+    border-color: #1f5eff;
+}
+
+.editor-body {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+}
+
+.milkdown-host,
+.source-editor {
+    grid-area: 1 / 1;
+    width: 100%;
+    height: 100%;
+}
+
+.milkdown-host.hidden,
+.source-editor.hidden {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.milkdown-host.active,
+.source-editor.active {
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.milkdown-host {
+    overflow: auto;
+    background: #f7f8fa;
+    padding: 32px 24px;
+}
+
+.milkdown-host .milkdown {
+    max-width: 900px;
+    min-height: calc(100% - 64px);
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #e4e7ec;
+    box-shadow: 0 16px 38px rgba(15, 23, 42, 0.08);
+}
+
+.milkdown-host .ProseMirror {
+    min-height: calc(100vh - 190px);
+    padding: 48px 64px 72px;
+    outline: none;
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 16px;
+    line-height: 1.78;
+    color: #253047;
+    caret-color: #1f5eff;
+}
+
+.milkdown-host .ProseMirror > *:first-child {
+    margin-top: 0;
+}
+
+.milkdown-host .ProseMirror h1,
+.milkdown-host .ProseMirror h2,
+.milkdown-host .ProseMirror h3,
+.milkdown-host .ProseMirror h4,
+.milkdown-host .ProseMirror h5,
+.milkdown-host .ProseMirror h6 {
+    color: #111827;
+    line-height: 1.25;
+    font-weight: 700;
+    margin: 1.55em 0 0.65em;
+}
+
+.milkdown-host .ProseMirror h1 {
+    font-size: 32px;
+    letter-spacing: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.milkdown-host .ProseMirror h2 {
+    font-size: 24px;
+}
+
+.milkdown-host .ProseMirror h3 {
+    font-size: 20px;
+}
+
+.milkdown-host .ProseMirror p {
+    margin: 0.85em 0;
+}
+
+.milkdown-host .ProseMirror ul,
+.milkdown-host .ProseMirror ol {
+    padding-left: 1.65em;
+    margin: 0.8em 0;
+}
+
+.milkdown-host .ProseMirror li {
+    margin: 0.25em 0;
+}
+
+.milkdown-host .ProseMirror blockquote {
+    margin: 1em 0;
+    padding: 0.2em 1em;
+    color: #475467;
+    border-left: 4px solid #9aa4b2;
+    background: #f8fafc;
+}
+
+.milkdown-host .ProseMirror code {
+    background: #eef2f6;
+    border: 1px solid #d8dee8;
+    border-radius: 4px;
+    color: #9a3412;
+    font-family: "Cascadia Code", "Consolas", monospace;
+    font-size: 0.92em;
+    padding: 0.1em 0.35em;
+}
+
+.milkdown-host .ProseMirror pre {
+    background: #18202f;
+    color: #ecf2ff;
+    border-radius: 6px;
+    padding: 16px;
+    overflow: auto;
+    line-height: 1.6;
+}
+
+.milkdown-host .ProseMirror pre code {
+    background: transparent;
+    border: none;
+    color: inherit;
+    padding: 0;
+}
+
+.milkdown-host .ProseMirror table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+}
+
+.milkdown-host .ProseMirror th,
+.milkdown-host .ProseMirror td {
+    border: 1px solid #d0d7e2;
+    padding: 8px 10px;
+    vertical-align: top;
+}
+
+.milkdown-host .ProseMirror th {
+    background: #f2f4f7;
+    font-weight: 650;
+}
+
+.milkdown-host .ProseMirror img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.source-editor {
+    resize: none;
+    border: none;
+    outline: none;
+    padding: 32px max(24px, calc((100vw - 960px) / 2));
+    background: #101828;
+    color: #eef4ff;
+    font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    tab-size: 4;
+}
+
+.source-editor::selection {
+    background: rgba(59, 130, 246, 0.45);
+}
+
+.heading-highlight {
+    background-color: rgba(31, 94, 255, 0.12) !important;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.export-progress-overlay,
+.settings-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 10000;
 }
 
-.export-progress-dialog {
-    background: #fff;
+.export-progress-overlay {
+    background: rgba(15, 23, 42, 0.52);
+}
+
+.export-progress-dialog,
+.settings-dialog {
+    background: #ffffff;
+    border: 1px solid #e4e7ec;
     border-radius: 8px;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.2);
+}
+
+.export-progress-dialog {
     padding: 24px;
-    min-width: 300px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    min-width: 320px;
 }
 
 .export-progress-title {
     font-size: 16px;
-    font-weight: 600;
-    color: #333;
+    font-weight: 650;
+    color: #1d2939;
     margin-bottom: 16px;
     text-align: center;
 }
@@ -179,7 +398,7 @@
 .export-progress-bar-container {
     width: 100%;
     height: 8px;
-    background: #e0e0e0;
+    background: #e4e7ec;
     border-radius: 4px;
     overflow: hidden;
     margin-bottom: 12px;
@@ -188,51 +407,37 @@
 .export-progress-bar {
     height: 100%;
     width: 0%;
-    background: linear-gradient(90deg, #4285f4, #34a853);
-    border-radius: 4px;
-    transition: width 0.3s ease;
+    background: #1f5eff;
+    transition: width 0.25s ease;
 }
 
 .export-progress-message {
     font-size: 14px;
-    color: #666;
+    color: #475467;
     text-align: center;
     margin-bottom: 8px;
 }
 
 .export-progress-percent {
     font-size: 12px;
-    color: #999;
+    color: #667085;
     text-align: center;
 }
 
-/* 设置弹窗 */
 .settings-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
+    background: rgba(15, 23, 42, 0.38);
 }
 
 .settings-dialog {
-    background: #fff;
-    border-radius: 8px;
     padding: 20px;
-    min-width: 320px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    min-width: 340px;
 }
 
 .settings-title {
     font-size: 14px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 12px;
+    font-weight: 650;
+    color: #1d2939;
+    margin-bottom: 14px;
 }
 
 .settings-row {
@@ -244,375 +449,55 @@
 
 .settings-label {
     font-size: 12px;
-    color: #666;
-    min-width: 90px;
+    color: #475467;
+    min-width: 96px;
 }
 
 .settings-select {
     flex: 1;
-    padding: 4px 8px;
+    padding: 6px 8px;
     font-size: 12px;
-    border: 1px solid #d0d0d0;
+    border: 1px solid #cfd6e1;
     border-radius: 4px;
-    background: #fff;
-    color: #666;
+    background: #ffffff;
+    color: #344054;
 }
 
 .settings-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
 }
 
-.view-mode-indicator {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.mode-label {
-    font-size: 12px;
-    color: #666;
-    margin-right: 4px;
-}
-
-.mode-btn {
-    padding: 4px 12px;
-    font-size: 12px;
-    border: 1px solid #d0d0d0;
-    background: #fff;
-    color: #666;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.mode-btn:hover {
-    background: #f5f5f5;
-    border-color: #b0b0b0;
-}
-
-.mode-btn.active {
-    background: #4285f4;
-    color: #fff;
-    border-color: #4285f4;
-}
-
-.cherry-editor {
-    flex: 1;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-}
-
-
-/* CherryMarkdown 样式覆盖 - Typora 风格 */
-
-.cherry-editor .cherry-editor__inner {
-    height: 100%;
-}
-
-.cherry-editor .cherry {
-    height: 100%;
-}
-
-
-/* Typora 风格的编辑器样式 */
-
-.cherry-editor .cherry-editor__inner .cherry-editor__main {
-    background: #fff;
-}
-
-.cherry-editor .cherry-editor__inner .cherry-editor__main .cherry-editor__edit {
-    background: #fff;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 1.6;
-    color: #333;
-}
-
-.cherry-editor .cherry-editor__inner .cherry-editor__main .cherry-editor__preview {
-    background: #fafafa;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 1.8;
-    color: #333;
-    padding: 40px;
-}
-
-
-/* 双栏模式：使编辑区和预览区宽度相等 */
-
-.cherry-editor .cherry-editor__inner .cherry-editor__main.cherry-editor__main--edit-preview {
-    display: flex;
-}
-
-.cherry-editor .cherry-editor__inner .cherry-editor__main.cherry-editor__main--edit-preview .cherry-editor__edit {
-    flex: 1;
-    width: 50%;
-    min-width: 0;
-}
-
-.cherry-editor .cherry-editor__inner .cherry-editor__main.cherry-editor__main--edit-preview .cherry-editor__preview {
-    flex: 1;
-    width: 50%;
-    min-width: 0;
-}
-
-
-/* CodeMirror 编辑器区域 */
-
-.cherry-editor .CodeMirror {
-    height: 100%;
-    font-size: 16px;
-    line-height: 1.6;
-    display: block !important;
-}
-
-.cherry-editor .CodeMirror-scroll {
-    height: 100%;
-    overflow: auto;
-    display: block !important;
-}
-
-
-/* 确保编辑模式可见 */
-
-.cherry-editor .cherry-editor__main[class*="editOnly"] .cherry-editor__edit,
-.cherry-editor .cherry-editor__main[class*="edit-only"] .cherry-editor__edit {
-    display: block !important;
-    width: 100% !important;
-    height: 100% !important;
-}
-
-.cherry-editor .cherry-editor__main[class*="editOnly"] .cherry-editor__preview,
-.cherry-editor .cherry-editor__main[class*="edit-only"] .cherry-editor__preview {
-    display: none !important;
-}
-
-
-/* 确保预览模式可见 */
-
-.cherry-editor .cherry-editor__main[class*="previewOnly"] .cherry-editor__preview,
-.cherry-editor .cherry-editor__main[class*="preview-only"] .cherry-editor__preview {
-    display: block !important;
-    width: 100% !important;
-    height: 100% !important;
-}
-
-.cherry-editor .cherry-editor__main[class*="previewOnly"] .cherry-editor__edit,
-.cherry-editor .cherry-editor__main[class*="preview-only"] .cherry-editor__edit {
-    display: none !important;
-}
-
-
-/* 预览区域 */
-
-.cherry-editor .cherry-previewer {
-    height: 100%;
-    overflow-y: auto;
-    padding: 40px;
-    box-sizing: border-box;
-}
-
-.cherry-editor .cherry-markdown.default {
-    max-width: 100%;
-}
-
-
-/* 确保双栏模式下两个区域宽度相等 - 通用选择器 */
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"],
-.cherry-editor .cherry-editor__main[class*="edit&preview"] {
-    display: flex !important;
-    flex-direction: row !important;
-}
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"]>div,
-.cherry-editor .cherry-editor__main[class*="edit&preview"]>div {
-    flex: 1 1 50% !important;
-    min-width: 0 !important;
-    max-width: 50% !important;
-    width: 50% !important;
-}
-
-
-/* 双栏模式：强制两个区域各占 50% */
-
-.cherry-editor .cherry-editor__main.cherry-editor__main--edit-preview,
-.cherry-editor .cherry-editor__main[class*="edit-preview"],
-.cherry-editor .cherry-editor__main[class*="edit&preview"] {
-    display: flex !important;
-    flex-direction: row !important;
-}
-
-.cherry-editor .cherry-editor__main.cherry-editor__main--edit-preview>div,
-.cherry-editor .cherry-editor__main[class*="edit-preview"]>div,
-.cherry-editor .cherry-editor__main[class*="edit&preview"]>div {
-    flex: 1 1 50% !important;
-    min-width: 0 !important;
-    max-width: 50% !important;
-    width: 50% !important;
-}
-
-
-/* 编辑区域在双栏模式下 */
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit,
-.cherry-editor .cherry-editor__main.cherry-editor__main--edit-preview .cherry-editor__edit {
-    flex: 0 0 50% !important;
-    width: 50% !important;
-    max-width: 50% !important;
-    min-width: 0 !important;
-}
-
-
-/* 预览区域在双栏模式下 */
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview,
-.cherry-editor .cherry-editor__main.cherry-editor__main--edit-preview .cherry-editor__preview {
-    flex: 0 0 50% !important;
-    width: 50% !important;
-    max-width: 50% !important;
-    min-width: 0 !important;
-}
-
-
-/* CodeMirror 容器在双栏模式下 */
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit .CodeMirror,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit .CodeMirror {
-    width: 100% !important;
-    height: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-}
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit .CodeMirror-scroll,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit .CodeMirror-scroll {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-}
-
-
-/* 预览容器在双栏模式下 */
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview .cherry-previewer,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview .cherry-previewer {
-    width: 100% !important;
-    height: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-}
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview .cherry-markdown.default,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview .cherry-markdown.default {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-}
-
-
-/* 强制覆盖所有可能的宽度设置 */
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit {
-    overflow: hidden !important;
-}
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview {
-    overflow: hidden !important;
-}
-
-
-/* 覆盖 CherryMarkdown 可能设置的固定宽度 */
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__preview,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__preview {
-    overflow: hidden !important;
-}
-
-.cherry-editor .cherry-editor__main[class*="edit-preview"] .cherry-editor__edit,
-.cherry-editor .cherry-editor__main[class*="edit&preview"] .cherry-editor__edit {
-    overflow: hidden !important;
-}
-
-
-/* 最强制性的规则：直接针对所有可能的类名组合 */
-
-.cherry-editor [class*="cherry-editor__main"][class*="edit"][class*="preview"] {
-    display: flex !important;
-    flex-direction: row !important;
-}
-
-.cherry-editor [class*="cherry-editor__main"][class*="edit"][class*="preview"]>[class*="cherry-editor__edit"] {
-    flex: 0 0 50% !important;
-    width: 50% !important;
-    max-width: 50% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-    display: block !important;
-}
-
-.cherry-editor [class*="cherry-editor__main"][class*="edit"][class*="preview"]>[class*="cherry-editor__preview"] {
-    flex: 0 0 50% !important;
-    width: 50% !important;
-    max-width: 50% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-    display: block !important;
-}
-
-
-/* 确保编辑器容器始终可见 */
-
-.cherry-editor .cherry-editor__inner {
-    height: 100% !important;
-    display: block !important;
-}
-
-.cherry-editor .cherry {
-    height: 100% !important;
-    display: block !important;
-}
-
-.cherry-editor .cherry-editor__main {
-    height: 100% !important;
-    display: flex !important;
-    flex-direction: row !important;
-}
-
-
-/* 工具栏样式优化 */
-
-.cherry-editor .cherry-toolbar {
-    background: #fafafa;
-    border-bottom: 1px solid #e0e0e0;
-    padding: 8px 16px;
-}
-
-.cherry-editor .cherry-toolbar .cherry-toolbar-button {
-    color: #666;
-    padding: 6px 8px;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-}
-
-.cherry-editor .cherry-toolbar .cherry-toolbar-button:hover {
-    background: #e8e8e8;
-}
-
-
-/* 标题高亮效果 */
-
-.heading-highlight {
-    background-color: rgba(66, 133, 244, 0.1) !important;
-    transition: background-color 0.3s ease !important;
-    border-radius: 4px;
-    padding: 2px 4px;
-    margin: -2px -4px;
+@media (max-width: 900px) {
+    .editor-header {
+        align-items: flex-start;
+    }
+
+    .file-name {
+        max-width: 150px;
+    }
+
+    .header-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .file-actions {
+        margin-right: 0;
+    }
+
+    .editor-error {
+        max-width: 100%;
+        flex-basis: 100%;
+    }
+
+    .milkdown-host {
+        padding: 18px 12px;
+    }
+
+    .milkdown-host .ProseMirror {
+        min-height: calc(100vh - 210px);
+        padding: 28px 22px 48px;
+        font-size: 15px;
+    }
 }
