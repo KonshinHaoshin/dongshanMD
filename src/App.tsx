@@ -8,7 +8,9 @@ import {
   openDirectory,
   renameFile,
   searchWorkspaceFiles,
+  readDirectoryTree,
   type SearchResult,
+  type TreeNode,
 } from './utils/fileOperations';
 import { t } from './utils/i18n';
 import './App.css';
@@ -91,6 +93,7 @@ const App: Component = () => {
   const [workspaceSearchResults, setWorkspaceSearchResults] = createSignal<SearchResult[]>([]);
   const [pendingJump, setPendingJump] = createSignal<{ filePath: string; lineNumber: number } | null>(null);
   const [renamedFile, setRenamedFile] = createSignal<{ oldPath: string; newPath: string } | null>(null);
+  const [directoryTree, setDirectoryTree] = createSignal<TreeNode[]>([]);
 
   onMount(() => {
     applyTheme(getInitialTheme());
@@ -143,6 +146,15 @@ const App: Component = () => {
     }
   };
 
+  const refreshDirectoryTree = async (rootPath = workspacePath()) => {
+    if (!rootPath) {
+      setDirectoryTree([]);
+      return;
+    }
+    const tree = await readDirectoryTree(rootPath, 2);
+    setDirectoryTree(tree);
+  };
+
   const handleOpenWorkspace = async () => {
     try {
       const dirPath = await openDirectory();
@@ -152,6 +164,8 @@ const App: Component = () => {
       const files = await listWorkspaceFiles(dirPath);
       setWorkspaceFiles(files);
       setWorkspaceSearchResults([]);
+      const tree = await readDirectoryTree(dirPath, 2);
+      setDirectoryTree(tree);
       setSidebarVisible(true);
     } catch {
       console.error(t('dir.workspaceFailed'));
@@ -185,9 +199,25 @@ const App: Component = () => {
       setRenamedFile({ oldPath, newPath });
       await refreshDirFiles(newPath);
       await refreshWorkspaceFiles();
+      await refreshDirectoryTree();
     } catch {
       alert(t('dir.renameFailed'));
     }
+  };
+
+  const handleClearRecent = () => {
+    saveRecentFiles([]);
+    setRecentFiles([]);
+  };
+
+  const handleNewFile = (filePath: string) => {
+    setFileToOpen(filePath);
+    refreshDirFiles(filePath);
+    refreshDirectoryTree();
+  };
+
+  const handleTreeRefresh = () => {
+    refreshDirectoryTree();
   };
 
   const handleHeadingClick = (lineNumber: number, headingText?: string) => {
@@ -232,6 +262,7 @@ const App: Component = () => {
     const storedWorkspacePath = workspacePath();
     if (storedWorkspacePath) {
       refreshWorkspaceFiles(storedWorkspacePath);
+      refreshDirectoryTree(storedWorkspacePath);
     }
 
     if (isTauri) {
@@ -246,11 +277,10 @@ const App: Component = () => {
             .map(cleanPath)
             .filter(arg => {
               const lowerArg = arg.toLowerCase();
-              return (
-                lowerArg.endsWith(".md") ||
-                lowerArg.endsWith(".markdown") ||
-                lowerArg.endsWith(".txt")
-              ) && !lowerArg.endsWith(".exe");
+              return !lowerArg.endsWith(".exe") &&
+                !lowerArg.endsWith(".dll") &&
+                !lowerArg.endsWith(".so") &&
+                !lowerArg.endsWith(".dylib");
             });
 
           if (fileArgs.length > 0) {
@@ -282,6 +312,7 @@ const App: Component = () => {
         workspacePath={workspacePath()}
         workspaceFiles={workspaceFiles()}
         searchResults={workspaceSearchResults()}
+        directoryTree={directoryTree()}
         onOpenWorkspace={handleOpenWorkspace}
         onRenameFile={handleRenameFile}
         onWorkspaceSearch={handleWorkspaceSearch}
@@ -290,6 +321,9 @@ const App: Component = () => {
           setFileToOpen(filePath);
           refreshDirFiles(filePath);
         }}
+        onClearRecent={handleClearRecent}
+        onNewFile={handleNewFile}
+        onTreeRefresh={handleTreeRefresh}
       />
       <div class="main-content" classList={{ 'with-sidebar': sidebarVisible() }}>
         <Editor 

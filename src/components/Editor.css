@@ -296,66 +296,35 @@
     line-height: 1.6;
 }
 
-.milkdown-host .ProseMirror pre code {
-    background: transparent;
-    border: none;
-    color: inherit;
-    padding: 0;
-}
-
-.milkdown-host .ProseMirror table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1em 0;
-}
-
-.milkdown-host .ProseMirror th,
-.milkdown-host .ProseMirror td {
-    border: 1px solid var(--td-border);
-    padding: 8px 10px;
-    vertical-align: top;
-}
-
-.milkdown-host .ProseMirror th {
-    background: var(--th-bg);
-    font-weight: 650;
-}
-
-.milkdown-host .ProseMirror img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 4px;
-}
-
 .source-wrapper {
-    grid-area: 1 / 1;
-    width: 100%;
-    height: 100%;
     position: relative;
-    display: none;
+    overflow: auto;
+    background: var(--bg-editor);
 }
 
-.source-wrapper.active {
-    display: block;
+.source-highlight,
+.source-editor {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    margin: 0;
+    padding: 48px 64px 72px;
+    font-family: "Cascadia Code", "Consolas", monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: auto;
+    border: none;
+    outline: none;
+    resize: none;
+    tab-size: 4;
 }
 
 .source-highlight {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    padding: 32px max(24px, calc((100vw - 960px) / 2));
-    background: var(--pre-bg);
-    font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
-    font-size: 14px;
-    line-height: 1.7;
-    tab-size: 4;
-    overflow: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
+    color: var(--text-primary);
     pointer-events: none;
-    color: var(--text-secondary);
-    border: none;
-    z-index: 1;
+    z-index: 0;
+    background: transparent;
 }
 
 .source-highlight code {
@@ -364,50 +333,53 @@
     line-height: inherit;
 }
 
-.source-highlight .sh-heading { color: #7c3aed; font-weight: 700; }
-.source-highlight .sh-bold { color: #db2777; font-weight: 700; }
-.source-highlight .sh-italic { color: #0891b2; font-style: italic; }
-.source-highlight .sh-code,
-.source-highlight .sh-inline { color: #ea580c; background: rgba(234, 88, 12, 0.08); border-radius: 2px; }
-.source-highlight .sh-link { color: #2563eb; text-decoration: underline; }
-.source-highlight .sh-image { color: #7c3aed; }
-.source-highlight .sh-blockquote { color: #6b7280; }
-.source-highlight .sh-list { color: #059669; }
-.source-highlight .sh-hr { color: #9ca3af; }
-
-[data-theme="dark"] .source-highlight .sh-heading { color: #a78bfa; }
-[data-theme="dark"] .source-highlight .sh-bold { color: #f472b6; }
-[data-theme="dark"] .source-highlight .sh-italic { color: #22d3ee; }
-[data-theme="dark"] .source-highlight .sh-code,
-[data-theme="dark"] .source-highlight .sh-inline { color: #fb923c; }
-[data-theme="dark"] .source-highlight .sh-link { color: #60a5fa; }
-[data-theme="dark"] .source-highlight .sh-image { color: #a78bfa; }
-[data-theme="dark"] .source-highlight .sh-blockquote { color: #9ca3af; }
-[data-theme="dark"] .source-highlight .sh-list { color: #34d399; }
-[data-theme="dark"] .source-highlight .sh-hr { color: #6b7280; }
-
 .source-editor {
-    position: relative;
-    z-index: 2;
-    resize: none;
-    border: none;
-    outline: none;
-    padding: 32px max(24px, calc((100vw - 960px) / 2));
-    background: transparent;
     color: transparent;
     caret-color: var(--btn-active-bg);
-    font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
-    font-size: 14px;
-    line-height: 1.7;
-    tab-size: 4;
-    width: 100%;
-    height: 100%;
+    background: transparent;
+    z-index: 1;
     -webkit-text-fill-color: transparent;
 }
 
 .source-editor::selection {
-    background: rgba(59, 130, 246, 0.45);
+    background: var(--search-highlight);
+    -webkit-text-fill-color: var(--text-primary);
 }
+
+.sh-code { color: var(--code-block-text); }
+.sh-inline { color: var(--code-text); }
+
+.milkdown-host .ProseMirror pre code {
+    font-family: "Cascadia Code", "Consolas", monospace;
+    font-size: 0.92em;
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+}
+
+.milkdown-host .ProseMirror pre .token.keyword { color: var(--tok-keyword); }
+.milkdown-host .ProseMirror pre .token.string,
+.milkdown-host .ProseMirror pre .token.attr-value { color: var(--tok-string); }
+.milkdown-host .ProseMirror pre .token.comment { color: var(--tok-comment); font-style: italic; }
+.milkdown-host .ProseMirror pre .token.function { color: var(--tok-function); }
+.milkdown-host .ProseMirror pre .token.number,
+.milkdown-host .ProseMirror pre .token.boolean { color: var(--tok-number); }
+.milkdown-host .ProseMirror pre .token.operator { color: var(--tok-operator); }
+.milkdown-host .ProseMirror pre .token.punctuation { color: var(--tok-punctuation); }
+.milkdown-host .ProseMirror pre .token.class-name,
+.milkdown-host .ProseMirror pre .token.builtin { color: var(--tok-class); }
+.milkdown-host .ProseMirror pre .token.property { color: var(--tok-property); }
+.milkdown-host .ProseMirror pre .token.tag { color: var(--tok-tag); }
+.milkdown-host .ProseMirror pre .token.attr-name { color: var(--tok-attr); }
+
+.floating-copy-btn {
+    padding: 4px 10px; font-size: 13px;
+    border: 1px solid var(--border-color); border-radius: 4px;
+    background: var(--btn-bg); color: var(--btn-text);
+    cursor: pointer; box-shadow: 0 2px 8px var(--shadow-md);
+}
+.floating-copy-btn:hover { background: var(--btn-hover-bg); }
 
 .heading-highlight {
     background-color: rgba(31, 94, 255, 0.12) !important;

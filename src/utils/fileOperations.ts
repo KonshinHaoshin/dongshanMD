@@ -1,13 +1,20 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile, readDir, rename, exists } from '@tauri-apps/plugin-fs';
 
-const SUPPORTED_EXTENSIONS = ['md', 'markdown', 'txt'];
-const SKIP_DIRECTORIES = new Set(['.git', 'node_modules', 'dist', 'dist-ssr', 'target', '.cache', '.vite']);
+const SKIP_DIRECTORIES = new Set(['.git', 'node_modules', 'dist', 'dist-ssr', 'target', '.cache', '.vite', '__pycache__', '.vs', '.idea']);
 
 export interface SearchResult {
   filePath: string;
   lineNumber: number;
   lineText: string;
+}
+
+export interface TreeNode {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  children?: TreeNode[];
+  expanded?: boolean;
 }
 
 const getSeparator = (dirPath: string) => (dirPath.includes('\\') ? '\\' : '/');
@@ -19,8 +26,6 @@ const joinPath = (dirPath: string, name: string) => {
 
 const getFileExt = (filePath: string) => filePath.split('.').pop()?.toLowerCase() || '';
 
-const isSupportedFile = (filePath: string) => SUPPORTED_EXTENSIONS.includes(getFileExt(filePath));
-
 const getFileDir = (filePath: string) => filePath.replace(/[\\/][^\\/]*$/, '');
 
 const getFileName = (filePath: string) => {
@@ -30,18 +35,39 @@ const getFileName = (filePath: string) => {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/**
- * 列出目录中受支持的文件
- */
+const FILE_ICONS: Record<string, string> = {
+  md: '\u{1F4C4}', markdown: '\u{1F4C4}', txt: '\u{1F4C4}',
+  js: '\u{1F4DC}', ts: '\u{1F4DC}', tsx: '\u{1F4DC}', jsx: '\u{1F4DC}',
+  json: '\u{1F4C7}', yaml: '\u{1F4C2}', yml: '\u{1F4C2}',
+  css: '\u{1F3A8}', scss: '\u{1F3A8}', less: '\u{1F3A8}',
+  html: '\u{1F310}', htm: '\u{1F310}',
+  py: '\u{1F40D}', rs: '\u{1F916}', go: '\u{1F408}',
+  java: '\u2615', c: '\u2699', cpp: '\u2699', h: '\u2699',
+  sh: '\u{1F4BB}', bat: '\u{1F4BB}', ps1: '\u{1F4BB}',
+  sql: '\u{1F5C4}', xml: '\u{1F4C2}', toml: '\u{1F4C2}',
+  png: '\u{1F5BC}', jpg: '\u{1F5BC}', jpeg: '\u{1F5BC}', gif: '\u{1F5BC}', svg: '\u{1F3A8}',
+  pdf: '\u{1F4D1}',
+  zip: '\u{1F4E6}', tar: '\u{1F4E6}', gz: '\u{1F4E6}',
+};
+
+export const getFileIcon = (filePath: string) => {
+  const ext = getFileExt(filePath);
+  return FILE_ICONS[ext] || '\u{1F4C4}';
+};
+
+const sortTreeNodes = (nodes: TreeNode[]): TreeNode[] => {
+  return nodes.sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+};
+
 export async function listDirectoryFiles(dirPath: string): Promise<string[]> {
   try {
     const entries = await readDir(dirPath);
     const files = entries
-      .filter(entry => {
-        if (!entry.name) return false;
-        return isSupportedFile(entry.name);
-      })
-      .map(entry => joinPath(dirPath, entry.name))
+      .filter(entry => !!entry.name)
+      .map(entry => joinPath(dirPath, entry.name!))
       .sort((a, b) => a.localeCompare(b));
     return files;
   } catch {
@@ -56,6 +82,37 @@ export async function openDirectory(): Promise<string | null> {
   });
 
   return typeof dirPath === 'string' ? dirPath : null;
+}
+
+export async function readDirectoryTree(dirPath: string, depth = 1): Promise<TreeNode[]> {
+  let entries;
+  try {
+    entries = await readDir(dirPath);
+  } catch {
+    return [];
+  }
+
+  const nodes: TreeNode[] = [];
+  for (const entry of entries) {
+    if (!entry.name) continue;
+    const fullPath = joinPath(dirPath, entry.name);
+    if (entry.isDirectory) {
+      if (SKIP_DIRECTORIES.has(entry.name)) continue;
+      const node: TreeNode = { name: entry.name, path: fullPath, isDirectory: true, expanded: false };
+      if (depth > 0) {
+        node.children = await readDirectoryTree(fullPath, depth - 1);
+      }
+      nodes.push(node);
+    } else {
+      nodes.push({ name: entry.name, path: fullPath, isDirectory: false });
+    }
+  }
+
+  return sortTreeNodes(nodes);
+}
+
+export async function expandTreeNode(dirPath: string): Promise<TreeNode[]> {
+  return readDirectoryTree(dirPath, 0);
 }
 
 export async function listWorkspaceFiles(rootPath: string): Promise<string[]> {
@@ -76,7 +133,7 @@ export async function listWorkspaceFiles(rootPath: string): Promise<string[]> {
         if (!SKIP_DIRECTORIES.has(entry.name)) {
           await walk(fullPath);
         }
-      } else if (isSupportedFile(entry.name)) {
+      } else {
         files.push(fullPath);
       }
     }
@@ -128,10 +185,6 @@ export async function renameFile(oldPath: string, newName: string): Promise<stri
   const proposedExt = getFileExt(cleanName);
   const finalName = proposedExt ? cleanName : `${cleanName}.${oldExt || 'md'}`;
 
-  if (!isSupportedFile(finalName)) {
-    throw new Error('Unsupported file extension');
-  }
-
   const newPath = joinPath(getFileDir(oldPath), finalName);
   if (newPath === oldPath) return oldPath;
   if (newPath.toLowerCase() !== oldPath.toLowerCase() && await exists(newPath)) {
@@ -142,27 +195,25 @@ export async function renameFile(oldPath: string, newName: string): Promise<stri
   return newPath;
 }
 
-/**
- * 打开文件对话框并读取文件内容
- * @returns 返回文件路径和内容，如果取消则返回 null
- */
+export async function createNewFile(dirPath: string, fileName: string): Promise<string> {
+  const cleanName = fileName.trim().replace(/^["']|["']$/g, '');
+  if (!cleanName || /[/\\]/.test(cleanName)) {
+    throw new Error('Invalid file name');
+  }
+
+  const fullPath = joinPath(dirPath, cleanName);
+  if (await exists(fullPath)) {
+    throw new Error('File already exists');
+  }
+
+  await writeTextFile(fullPath, '');
+  return fullPath;
+}
+
 export async function openFile(): Promise<{ path: string; content: string } | null> {
   try {
-    // 打开文件选择对话框
     const filePath = await open({
       filters: [
-        {
-          name: 'Markdown & Text',
-          extensions: ['md', 'txt', 'markdown'],
-        },
-        {
-          name: 'Markdown',
-          extensions: ['md', 'markdown'],
-        },
-        {
-          name: 'Text',
-          extensions: ['txt'],
-        },
         {
           name: 'All Files',
           extensions: ['*'],
@@ -175,7 +226,6 @@ export async function openFile(): Promise<{ path: string; content: string } | nu
       return null;
     }
 
-    // 读取文件内容
     const content = await readTextFile(filePath);
     return {
       path: filePath,
@@ -187,28 +237,13 @@ export async function openFile(): Promise<{ path: string; content: string } | nu
   }
 }
 
-/**
- * 保存文件对话框并写入文件内容
- * @param content 要保存的内容
- * @param defaultPath 默认文件路径（可选）
- * @returns 返回保存的文件路径，如果取消则返回 null
- */
 export async function saveFile(
   content: string,
   defaultPath?: string
 ): Promise<string | null> {
   try {
-    // 打开保存文件对话框
     const filePath = await save({
       filters: [
-        {
-          name: 'Markdown',
-          extensions: ['md'],
-        },
-        {
-          name: 'Text',
-          extensions: ['txt'],
-        },
         {
           name: 'All Files',
           extensions: ['*'],
@@ -221,7 +256,6 @@ export async function saveFile(
       return null;
     }
 
-    // 写入文件内容
     await writeTextFile(filePath, content);
     return filePath;
   } catch (error) {
@@ -230,11 +264,6 @@ export async function saveFile(
   }
 }
 
-/**
- * 直接保存到已有文件路径
- * @param path 文件路径
- * @param content 要保存的内容
- */
 export async function saveToFile(path: string, content: string): Promise<void> {
   try {
     await writeTextFile(path, content);
@@ -243,4 +272,3 @@ export async function saveToFile(path: string, content: string): Promise<void> {
     throw error;
   }
 }
-

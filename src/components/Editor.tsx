@@ -313,8 +313,6 @@ const Editor: Component<EditorProps> = (props) => {
     const loadFileFromPath = async (filePath: string) => {
         const p = filePath.trim().replace(/^["']|["']$/g, '');
         if (!p) return;
-        const lp = p.toLowerCase();
-        if (!lp.endsWith('.md') && !lp.endsWith('.markdown') && !lp.endsWith('.txt')) { setErrorMessage(t('file.onlyMdTxt')); return; }
         const ei = tabs().findIndex(t => t.path === p);
         if (ei >= 0) { switchActiveTab(ei); return; }
         if (fp() || mk() !== svd()) {
@@ -343,6 +341,53 @@ const Editor: Component<EditorProps> = (props) => {
     };
 
     const fixWysiwygImages = () => { if (!milkdownRoot) return; const b = fp(); setTimeout(() => { milkdownRoot?.querySelectorAll('img').forEach(img => { const o = img.getAttribute('data-original-src') || img.getAttribute('src') || ''; const cnv = resolveLocalImageSrc(o, b); if (cnv && img.src !== cnv) { img.setAttribute('data-original-src', o); img.src = cnv; } }); }, 50); };
+
+    let floatingBtn: HTMLButtonElement | null = null;
+    let lastPre: HTMLElement | null = null;
+
+    const getCodeText = (pre: HTMLElement) => (pre.querySelector('code')?.textContent || pre.textContent || '').trim();
+
+    const doCopy = async (text: string, btn: HTMLButtonElement) => {
+        try { await navigator.clipboard.writeText(text); } catch {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        }
+        btn.textContent = '\u2713';
+        setTimeout(() => { if (floatingBtn) floatingBtn.textContent = '\uD83D\uDCCB'; }, 1500);
+    };
+
+    const onEditorMouseMove = (e: MouseEvent) => {
+        const pre = (e.target as HTMLElement).closest('.ProseMirror pre') as HTMLElement | null;
+        if (!floatingBtn) return;
+        if (pre) {
+            const rect = pre.getBoundingClientRect();
+            floatingBtn.style.left = `${rect.right - 36}px`;
+            floatingBtn.style.top = `${rect.top + 4}px`;
+            floatingBtn.style.display = '';
+            if (pre !== lastPre) lastPre = pre;
+        } else {
+            floatingBtn.style.display = 'none';
+        }
+    };
+
+    const onFloatingBtnClick = () => {
+        if (!lastPre) return;
+        const text = getCodeText(lastPre);
+        if (text && floatingBtn) doCopy(text, floatingBtn);
+    };
+
+    const ensureFloatingBtn = () => {
+        if (floatingBtn) return;
+        floatingBtn = document.createElement('button');
+        floatingBtn.className = 'floating-copy-btn';
+        floatingBtn.textContent = '\uD83D\uDCCB';
+        floatingBtn.style.position = 'fixed';
+        floatingBtn.style.display = 'none';
+        floatingBtn.style.zIndex = '1000';
+        floatingBtn.onclick = onFloatingBtnClick;
+        document.body.appendChild(floatingBtn);
+    };
 
     const syncSourceScroll = () => { if (!sourceTextArea || !sourceHighlight) return; sourceHighlight.scrollTop = sourceTextArea.scrollTop; sourceHighlight.scrollLeft = sourceTextArea.scrollLeft; };
 
@@ -422,18 +467,21 @@ const Editor: Component<EditorProps> = (props) => {
     onMount(() => {
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('beforeunload', handleBeforeUnload);
+        ensureFloatingBtn();
         if (milkdownRoot) {
             milkdownRoot.addEventListener('paste', handlePasteEvent); milkdownRoot.addEventListener('drop', handleDropEvent); milkdownRoot.addEventListener('dragover', handleDragOver);
+            milkdownRoot.addEventListener('mousemove', onEditorMouseMove);
             createMilkdownHandle(milkdownRoot, mk(), (md) => { if (isProgrammaticChange) return; upd({ content: md }); fixWysiwygImages(); triggerAutoSave(); })
                 .then((h) => { editorHandle = h; const cc = h.getMarkdown(); upd({ savedContent: cc, content: cc }); setIsEditorReady(true); fixWysiwygImages(); if (props.initialFilePath && props.initialFilePath !== fp()) { loadedInitialPath = props.initialFilePath; loadFileFromPath(props.initialFilePath); setSessionReady(true); } else { restoreSession().finally(() => setSessionReady(true)); } })
                 .catch(() => setErrorMessage(t('editor.initFailed')));
         }
     });
-    onCleanup(() => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('beforeunload', handleBeforeUnload); autoSaveTimers.forEach(timer => clearTimeout(timer)); autoSaveTimers.clear(); if (milkdownRoot) { milkdownRoot.removeEventListener('paste', handlePasteEvent); milkdownRoot.removeEventListener('drop', handleDropEvent); milkdownRoot.removeEventListener('dragover', handleDragOver); } editorHandle?.destroy(); });
+    onCleanup(() => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('beforeunload', handleBeforeUnload); autoSaveTimers.forEach(timer => clearTimeout(timer)); autoSaveTimers.clear(); if (milkdownRoot) { milkdownRoot.removeEventListener('paste', handlePasteEvent); milkdownRoot.removeEventListener('drop', handleDropEvent); milkdownRoot.removeEventListener('dragover', handleDragOver); milkdownRoot.removeEventListener('mousemove', onEditorMouseMove); } editorHandle?.destroy(); if (floatingBtn) { floatingBtn.remove(); floatingBtn = null; } });
     createEffect(() => { const p = props.initialFilePath; if (!p || p === loadedInitialPath || p === lastRequestedPath) return; lastRequestedPath = p; if (isEditorReady()) { loadedInitialPath = p; loadFileFromPath(p); } });
     createEffect(() => { const renamed = props.renamedFile; if (!renamed) return; const index = tabs().findIndex(tab => tab.path === renamed.oldPath); if (index < 0) return; updateTab(index, { path: renamed.newPath }); clearAutoSaveTimer(renamed.oldPath); if (index === activeTab()) props.onFilePathChange?.(renamed.newPath); });
     createEffect(() => { if (progressBarElement) progressBarElement.style.width = `${exportProgress()}%`; });
     createEffect(() => { (window as any).__editorJumpToLine = jumpToLine; });
+    createEffect(() => { mk(); if (viewMode() === 'wysiwyg') fixWysiwygImages(); });
     createEffect(() => { mk(); if (viewMode() === 'wysiwyg') fixWysiwygImages(); });
     createEffect(() => { if (!sessionReady() || isRestoringSession) return; writeSessionState({ paths: tabs().map(tab => tab.path).filter((path): path is string => Boolean(path)), activePath: fp() }); });
 

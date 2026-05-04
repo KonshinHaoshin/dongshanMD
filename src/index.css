@@ -22,8 +22,8 @@
   --code-bg: #eef2f6;
   --code-border: #d8dee8;
   --code-text: #9a3412;
-  --pre-bg: #18202f;
-  --pre-text: #ecf2ff;
+  --pre-bg: #f1f5f9;
+  --pre-text: #1e293b;
   --blockquote-bg: #f8fafc;
   --blockquote-border: #9aa4b2;
   --blockquote-text: #475467;
@@ -49,6 +49,18 @@
   --search-border: #1f5eff;
   --search-highlight: rgba(255, 213, 0, 0.5);
   --search-highlight-current: rgba(255, 150, 0, 0.6);
+  --code-block-text: #032f62;
+  --tok-keyword: #d73a49;
+  --tok-string: #032f62;
+  --tok-comment: #6a737d;
+  --tok-function: #6f42c1;
+  --tok-number: #005cc5;
+  --tok-operator: #d73a49;
+  --tok-punctuation: #24292e;
+  --tok-class: #6f42c1;
+  --tok-property: #005cc5;
+  --tok-tag: #22863a;
+  --tok-attr: #6f42c1;
 }
 
 [data-theme="dark"] {
@@ -102,6 +114,18 @@
   --search-border: #89b4fa;
   --search-highlight: rgba(180, 150, 0, 0.5);
   --search-highlight-current: rgba(200, 100, 0, 0.6);
+  --code-block-text: #89b4fa;
+  --tok-keyword: #cba6f7;
+  --tok-string: #a6e3a1;
+  --tok-comment: #6c7086;
+  --tok-function: #89b4fa;
+  --tok-number: #fab387;
+  --tok-operator: #89dceb;
+  --tok-punctuation: #bac2de;
+  --tok-class: #f9e2af;
+  --tok-property: #89b4fa;
+  --tok-tag: #a6e3a1;
+  --tok-attr: #f9e2af;
 }
 
 * {
