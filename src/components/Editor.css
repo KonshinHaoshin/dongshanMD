@@ -3,20 +3,20 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f7f8fa;
-    color: #1f2933;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
 }
 
 .editor-header {
     padding: 10px 16px;
-    background: #ffffff;
-    border-bottom: 1px solid #dfe3ea;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 10px;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    box-shadow: 0 1px 2px var(--shadow-sm);
     z-index: 10;
 }
 
@@ -31,13 +31,13 @@
 .header-left h1 {
     font-size: 14px;
     font-weight: 650;
-    color: #253047;
+    color: var(--text-primary);
     margin: 0;
 }
 
 .file-name {
     font-size: 12px;
-    color: #667085;
+    color: var(--text-secondary);
     max-width: 260px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -45,7 +45,7 @@
 }
 
 .modified-indicator {
-    color: #c2410c;
+    color: var(--modified-color);
     font-weight: 700;
 }
 
@@ -54,9 +54,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #b42318;
-    background: #fff1f0;
-    border: 1px solid #ffccc7;
+    color: var(--error-text);
+    background: var(--error-bg);
+    border: 1px solid var(--error-border);
     border-radius: 4px;
     padding: 3px 8px;
     font-size: 12px;
@@ -87,9 +87,9 @@
     min-height: 30px;
     padding: 5px 12px;
     font-size: 12px;
-    border: 1px solid #cfd6e1;
-    background: #ffffff;
-    color: #344054;
+    border: 1px solid var(--btn-border);
+    background: var(--btn-bg);
+    color: var(--btn-text);
     cursor: pointer;
     border-radius: 4px;
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -100,12 +100,12 @@
 }
 
 .file-btn:hover {
-    background: #f2f4f7;
-    border-color: #98a2b3;
+    background: var(--btn-hover-bg);
+    border-color: var(--btn-hover-border);
 }
 
 .file-btn:active {
-    background: #e4e7ec;
+    background: var(--btn-hover-bg);
 }
 
 .export-menu-container {
@@ -116,10 +116,10 @@
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
-    background: #ffffff;
-    border: 1px solid #d0d5dd;
+    background: var(--dialog-bg);
+    border: 1px solid var(--dialog-border);
     border-radius: 6px;
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+    box-shadow: 0 12px 28px var(--shadow-lg);
     z-index: 1000;
     min-width: 160px;
     overflow: hidden;
@@ -130,19 +130,19 @@
     padding: 9px 14px;
     font-size: 12px;
     border: none;
-    background: #ffffff;
-    color: #344054;
+    background: var(--dialog-bg);
+    color: var(--btn-text);
     cursor: pointer;
     text-align: left;
     transition: background-color 0.15s ease;
 }
 
 .export-menu-item:hover {
-    background: #f2f4f7;
+    background: var(--btn-hover-bg);
 }
 
 .export-menu-item:not(:last-child) {
-    border-bottom: 1px solid #edf0f5;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .editor-body {
@@ -174,14 +174,14 @@
 
 .milkdown-host {
     overflow: auto;
-    background: #ffffff;
+    background: var(--bg-editor);
     padding: 0;
 }
 
 .milkdown-host .milkdown {
     width: 100%;
     height: 100%;
-    background: #ffffff;
+    background: var(--bg-editor);
 }
 
 .milkdown-host .ProseMirror {
@@ -191,8 +191,8 @@
     font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 16px;
     line-height: 1.78;
-    color: #253047;
-    caret-color: #1f5eff;
+    color: var(--text-primary);
+    caret-color: var(--btn-active-bg);
 }
 
 .milkdown-host .ProseMirror > *:first-child {
@@ -205,7 +205,7 @@
 .milkdown-host .ProseMirror h4,
 .milkdown-host .ProseMirror h5,
 .milkdown-host .ProseMirror h6 {
-    color: #111827;
+    color: var(--text-heading);
     line-height: 1.25;
     font-weight: 700;
     margin: 1.55em 0 0.65em;
@@ -215,7 +215,7 @@
     font-size: 32px;
     letter-spacing: 0;
     padding-bottom: 12px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--heading-border);
 }
 
 .milkdown-host .ProseMirror h2 {
@@ -243,24 +243,24 @@
 .milkdown-host .ProseMirror blockquote {
     margin: 1em 0;
     padding: 0.2em 1em;
-    color: #475467;
-    border-left: 4px solid #9aa4b2;
-    background: #f8fafc;
+    color: var(--blockquote-text);
+    border-left: 4px solid var(--blockquote-border);
+    background: var(--blockquote-bg);
 }
 
 .milkdown-host .ProseMirror code {
-    background: #eef2f6;
-    border: 1px solid #d8dee8;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
     border-radius: 4px;
-    color: #9a3412;
+    color: var(--code-text);
     font-family: "Cascadia Code", "Consolas", monospace;
     font-size: 0.92em;
     padding: 0.1em 0.35em;
 }
 
 .milkdown-host .ProseMirror pre {
-    background: #18202f;
-    color: #ecf2ff;
+    background: var(--pre-bg);
+    color: var(--pre-text);
     border-radius: 6px;
     padding: 16px;
     overflow: auto;
@@ -282,13 +282,13 @@
 
 .milkdown-host .ProseMirror th,
 .milkdown-host .ProseMirror td {
-    border: 1px solid #d0d7e2;
+    border: 1px solid var(--td-border);
     padding: 8px 10px;
     vertical-align: top;
 }
 
 .milkdown-host .ProseMirror th {
-    background: #f2f4f7;
+    background: var(--th-bg);
     font-weight: 650;
 }
 
@@ -303,8 +303,8 @@
     border: none;
     outline: none;
     padding: 32px max(24px, calc((100vw - 960px) / 2));
-    background: #101828;
-    color: #eef4ff;
+    background: var(--pre-bg);
+    color: var(--pre-text);
     font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
     font-size: 14px;
     line-height: 1.7;
@@ -321,6 +321,87 @@
     transition: background-color 0.3s ease;
 }
 
+/* Search dialog */
+.search-dialog {
+    position: absolute;
+    top: 8px;
+    right: 16px;
+    background: var(--search-bg);
+    border: 1px solid var(--search-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px var(--shadow-lg);
+    padding: 12px 16px;
+    min-width: 340px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-row input {
+    flex: 1;
+    padding: 5px 10px;
+    font-size: 12px;
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    background: var(--btn-bg);
+    color: var(--text-primary);
+    outline: none;
+    min-width: 0;
+}
+
+.search-row input:focus {
+    border-color: var(--search-border);
+}
+
+.search-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.search-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+    border: 1px solid var(--btn-border);
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.15s ease;
+}
+
+.search-btn:hover {
+    background: var(--btn-hover-bg);
+}
+
+.search-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.search-info {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.search-highlight {
+    background-color: var(--search-highlight);
+    border-radius: 2px;
+}
+
+.search-highlight-current {
+    background-color: var(--search-highlight-current);
+    border-radius: 2px;
+}
+
 .export-progress-overlay,
 .settings-overlay {
     position: fixed;
@@ -332,15 +413,15 @@
 }
 
 .export-progress-overlay {
-    background: rgba(15, 23, 42, 0.52);
+    background: var(--overlay-bg);
 }
 
 .export-progress-dialog,
 .settings-dialog {
-    background: #ffffff;
-    border: 1px solid #e4e7ec;
+    background: var(--dialog-bg);
+    border: 1px solid var(--border-color-light);
     border-radius: 8px;
-    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.2);
+    box-shadow: 0 18px 44px var(--shadow-lg);
 }
 
 .export-progress-dialog {
@@ -351,7 +432,7 @@
 .export-progress-title {
     font-size: 16px;
     font-weight: 650;
-    color: #1d2939;
+    color: var(--text-primary);
     margin-bottom: 16px;
     text-align: center;
 }
@@ -359,7 +440,7 @@
 .export-progress-bar-container {
     width: 100%;
     height: 8px;
-    background: #e4e7ec;
+    background: var(--progress-bg);
     border-radius: 4px;
     overflow: hidden;
     margin-bottom: 12px;
@@ -368,25 +449,25 @@
 .export-progress-bar {
     height: 100%;
     width: 0%;
-    background: #1f5eff;
+    background: var(--progress-fill);
     transition: width 0.25s ease;
 }
 
 .export-progress-message {
     font-size: 14px;
-    color: #475467;
+    color: var(--text-secondary);
     text-align: center;
     margin-bottom: 8px;
 }
 
 .export-progress-percent {
     font-size: 12px;
-    color: #667085;
+    color: var(--text-secondary);
     text-align: center;
 }
 
 .settings-overlay {
-    background: rgba(15, 23, 42, 0.38);
+    background: var(--overlay-bg);
 }
 
 .settings-dialog {
@@ -397,7 +478,7 @@
 .settings-title {
     font-size: 14px;
     font-weight: 650;
-    color: #1d2939;
+    color: var(--text-primary);
     margin-bottom: 14px;
 }
 
@@ -410,7 +491,7 @@
 
 .settings-label {
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
     min-width: 96px;
 }
 
@@ -418,10 +499,10 @@
     flex: 1;
     padding: 6px 8px;
     font-size: 12px;
-    border: 1px solid #cfd6e1;
+    border: 1px solid var(--btn-border);
     border-radius: 4px;
-    background: #ffffff;
-    color: #344054;
+    background: var(--btn-bg);
+    color: var(--btn-text);
 }
 
 .settings-actions {

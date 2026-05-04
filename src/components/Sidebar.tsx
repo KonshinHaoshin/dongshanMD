@@ -1,4 +1,5 @@
 import { Component, Show, For, createSignal, createEffect } from 'solid-js';
+import { t } from '../utils/i18n';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -8,6 +9,8 @@ interface SidebarProps {
   onHeadingClick?: (lineNumber: number, headingText?: string) => void;
   openFiles?: string[];
   currentFilePath?: string | null;
+  dirFiles?: string[];
+  recentFiles?: string[];
   onFileClick?: (filePath: string) => void;
 }
 
@@ -18,11 +21,12 @@ interface Heading {
   id: string;
 }
 
+type SidebarTab = 'dir' | 'recent' | 'outline';
+
 const Sidebar: Component<SidebarProps> = (props) => {
-  const [activeTab, setActiveTab] = createSignal<'files' | 'outline'>('outline');
+  const [activeTab, setActiveTab] = createSignal<SidebarTab>('dir');
   const [headings, setHeadings] = createSignal<Heading[]>([]);
 
-  // 提取 Markdown 标题
   const extractHeadings = (content: string): Heading[] => {
     const lines = content.split('\n');
     const headingsList: Heading[] = [];
@@ -30,37 +34,33 @@ const Sidebar: Component<SidebarProps> = (props) => {
 
     lines.forEach((line, index) => {
       const trimmed = line.trim();
-      // 匹配 ATX 风格的标题 (# ## ### 等)
       const atxMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
       if (atxMatch) {
         const level = atxMatch[1].length;
         const text = atxMatch[2].trim();
         const id = `heading-${idCounter++}`;
-        headingsList.push({
-          level,
-          text,
-          lineNumber: index + 1,
-          id,
-        });
+        headingsList.push({ level, text, lineNumber: index + 1, id });
       }
     });
 
     return headingsList;
   };
 
-  // 监听内容变化，更新大纲
   createEffect(() => {
     if (props.markdownContent) {
-      const newHeadings = extractHeadings(props.markdownContent);
-      setHeadings(newHeadings);
+      setHeadings(extractHeadings(props.markdownContent));
     }
   });
 
-  // 处理标题点击
   const handleHeadingClick = (heading: Heading) => {
     if (props.onHeadingClick) {
       props.onHeadingClick(heading.lineNumber, heading.text);
     }
+  };
+
+  const getFileName = (filePath: string) => {
+    const parts = filePath.split(/[/\\]/);
+    return parts[parts.length - 1] || filePath;
   };
 
   return (
@@ -69,77 +69,101 @@ const Sidebar: Component<SidebarProps> = (props) => {
         <div class="sidebar-header">
           <div class="sidebar-tabs">
             <button
-              class={`tab-btn ${activeTab() === 'files' ? 'active' : ''}`}
-              onClick={() => setActiveTab('files')}
+              class={`tab-btn ${activeTab() === 'dir' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dir')}
+              title={t('sidebar.files')}
             >
-              文件
+              &#128193;
+            </button>
+            <button
+              class={`tab-btn ${activeTab() === 'recent' ? 'active' : ''}`}
+              onClick={() => setActiveTab('recent')}
+              title={t('dir.open')}
+            >
+              &#128339;
             </button>
             <button
               class={`tab-btn ${activeTab() === 'outline' ? 'active' : ''}`}
               onClick={() => setActiveTab('outline')}
+              title={t('sidebar.outline')}
             >
-              大纲
+              &#9776;
             </button>
           </div>
-          <button class="sidebar-close" onClick={props.onToggle}>×</button>
+          <button class="sidebar-close" onClick={props.onToggle}>x</button>
         </div>
         <div class="sidebar-content">
-          <Show when={activeTab() === 'files'}>
+
+          <Show when={activeTab() === 'dir'}>
             <div class="file-tree">
-              <Show when={!props.openFiles || props.openFiles.length === 0}>
-                <div class="file-empty">暂无打开的文件</div>
+              <Show when={!props.dirFiles || props.dirFiles.length === 0}>
+                <div class="file-empty">{t('dir.noFolder')}</div>
               </Show>
-              <Show when={props.openFiles && props.openFiles.length > 0}>
-                <For each={props.openFiles}>
-                  {(filePath) => {
-                    const fileName = () => {
-                      const parts = filePath.split(/[/\\]/);
-                      return parts[parts.length - 1] || filePath;
-                    };
-                    const isActive = () => filePath === props.currentFilePath;
-                    return (
-                      <div
-                        class="file-item"
-                        classList={{ 'active': isActive() }}
-                        onClick={() => {
-                          if (props.onFileClick) {
-                            props.onFileClick(filePath);
-                          }
-                        }}
-                        title={filePath}
-                      >
-                        <span class="file-icon">📄</span>
-                        <span class="file-name">{fileName()}</span>
-                      </div>
-                    );
-                  }}
-                </For>
-              </Show>
+              <For each={props.dirFiles || []}>
+                {(filePath) => {
+                  const fileName = () => getFileName(filePath);
+                  const isActive = () => filePath === props.currentFilePath;
+                  return (
+                    <div
+                      class="file-item"
+                      classList={{ 'active': isActive() }}
+                      onClick={() => props.onFileClick?.(filePath)}
+                      title={filePath}
+                    >
+                      <span class="file-icon">&#128196;</span>
+                      <span class="file-name">{fileName()}</span>
+                    </div>
+                  );
+                }}
+              </For>
             </div>
           </Show>
+
+          <Show when={activeTab() === 'recent'}>
+            <div class="file-tree">
+              <Show when={!props.recentFiles || props.recentFiles.length === 0}>
+                <div class="file-empty">{t('dir.noFolder')}</div>
+              </Show>
+              <For each={props.recentFiles || []}>
+                {(filePath) => {
+                  const fileName = () => getFileName(filePath);
+                  const isActive = () => filePath === props.currentFilePath;
+                  return (
+                    <div
+                      class="file-item"
+                      classList={{ 'active': isActive() }}
+                      onClick={() => props.onFileClick?.(filePath)}
+                      title={filePath}
+                    >
+                      <span class="file-icon">&#128196;</span>
+                      <span class="file-name">{fileName()}</span>
+                    </div>
+                  );
+                }}
+              </For>
+            </div>
+          </Show>
+
           <Show when={activeTab() === 'outline'}>
             <div class="outline-tree">
               <Show when={headings().length === 0}>
-                <div class="outline-empty">暂无标题</div>
+                <div class="outline-empty">-</div>
               </Show>
-              <Show when={headings().length > 0}>
-                <For each={headings()}>
-                  {(heading) => (
-                    <div
-                      class="outline-item"
-                      classList={{
-                        [`level-${heading.level}`]: true,
-                      }}
-                      onClick={() => handleHeadingClick(heading)}
-                      title={`跳转到第 ${heading.lineNumber} 行`}
-                    >
-                      <span class="outline-text">{heading.text}</span>
-                    </div>
-                  )}
-                </For>
-              </Show>
+              <For each={headings()}>
+                {(heading) => (
+                  <div
+                    class="outline-item"
+                    classList={{ [`level-${heading.level}`]: true }}
+                    onClick={() => handleHeadingClick(heading)}
+                    title={heading.text}
+                  >
+                    <span class="outline-text">{heading.text}</span>
+                  </div>
+                )}
+              </For>
             </div>
           </Show>
+
         </div>
       </div>
     </Show>

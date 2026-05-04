@@ -7,13 +7,18 @@ import { clipboard } from '@milkdown/kit/plugin/clipboard';
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener';
 import { trailing } from '@milkdown/kit/plugin/trailing';
 import { getMarkdown, insert, replaceAll } from '@milkdown/kit/utils';
+import { math } from '@milkdown/plugin-math';
+import { diagram } from '@milkdown/plugin-diagram';
+import { prism } from '@milkdown/plugin-prism';
 import '@milkdown/kit/prose/view/style/prosemirror.css';
 import '@milkdown/kit/prose/tables/style/tables.css';
+import 'katex/dist/katex.min.css';
 import './Editor.css';
 import { openFile, saveFile, saveToFile } from '../utils/fileOperations';
 import { exportFile, ExportProgressCallback } from '../utils/exportUtils';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { mkdir, writeFile } from '@tauri-apps/plugin-fs';
+import { t, getLocale, setLocale } from '../utils/i18n';
 
 type ViewMode = 'wysiwyg' | 'source';
 type ImagePasteMode = 'base64' | 'relative';
@@ -33,18 +38,7 @@ interface EditorProps {
     onFilePathChange?: (filePath: string | null) => void;
 }
 
-const DEFAULT_MARKDOWN = `# 欢迎使用 DongshanMD
-
-这是一个真正所见即所得的 Markdown 编辑器。
-
-## 功能特性
-
-- 直接编辑渲染后的文档
-- 保留 Markdown 源码模式
-- 支持常规 GFM 文档结构
-- 打开、保存和导出都以 Markdown 为真源
-
-开始编写你的 Markdown 文档吧！`;
+const DEFAULT_MARKDOWN = '';
 
 const readFileAsDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -108,6 +102,9 @@ const createMilkdownHandle = async (
         .use(clipboard)
         .use(listener)
         .use(trailing)
+        .use(math)
+        .use(diagram)
+        .use(prism)
         .create();
 
     return {
@@ -115,7 +112,7 @@ const createMilkdownHandle = async (
             try {
                 latestMarkdown = editor.action(getMarkdown());
             } catch (error) {
-                console.error('读取 WYSIWYG 内容失败:', error);
+                console.error(t('file.loadFailed') + ':', error);
             }
             return latestMarkdown;
         },
@@ -137,6 +134,11 @@ const createMilkdownHandle = async (
     };
 };
 
+const applyTheme = (theme: string) => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+};
+
 const Editor: Component<EditorProps> = (props) => {
     let milkdownRoot: HTMLDivElement | undefined;
     let sourceTextArea: HTMLTextAreaElement | undefined;
@@ -145,6 +147,7 @@ const Editor: Component<EditorProps> = (props) => {
     let loadedInitialPath: string | null = null;
     let isProgrammaticChange = false;
     let lastRequestedPath: string | null = null;
+    let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
     const [viewMode, setViewMode] = createSignal<ViewMode>('wysiwyg');
     const [markdownContent, setMarkdownContent] = createSignal<string>(DEFAULT_MARKDOWN);
@@ -162,6 +165,17 @@ const Editor: Component<EditorProps> = (props) => {
     const [imagePasteMode, setImagePasteMode] = createSignal<ImagePasteMode>(
         (localStorage.getItem('imagePasteMode') as ImagePasteMode) || 'base64'
     );
+    const [autoSaveEnabled, setAutoSaveEnabled] = createSignal<boolean>(
+        localStorage.getItem('autoSave') !== 'false'
+    );
+    const [currentTheme, setCurrentTheme] = createSignal<string>(
+        localStorage.getItem('theme') || 'light'
+    );
+    const [searchVisible, setSearchVisible] = createSignal(false);
+    const [searchTerm, setSearchTerm] = createSignal('');
+    const [replaceTerm, setReplaceTerm] = createSignal('');
+    const [searchIndex, setSearchIndex] = createSignal(0);
+    const [searchResults, setSearchResults] = createSignal<number[]>([]);
 
     const emitContentChange = (content: string) => {
         props.onContentChange?.(content);
@@ -176,10 +190,36 @@ const Editor: Component<EditorProps> = (props) => {
         emitContentChange(content);
     };
 
+    const doSave = async () => {
+        const content = viewMode() === 'source' ? syncSourceToWysiwyg() : syncFromWysiwyg();
+        const filePath = currentFilePath();
+
+        if (filePath) {
+            await saveToFile(filePath, content);
+            setLastSavedContent(content);
+            setIsModified(false);
+            setErrorMessage('');
+            props.onFilePathChange?.(filePath);
+            return;
+        }
+    };
+
+    const triggerAutoSave = () => {
+        if (!autoSaveEnabled()) return;
+        if (!currentFilePath()) return;
+        if (!isModified()) return;
+        if (autoSaveTimer) clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(() => {
+            autoSaveTimer = null;
+            doSave();
+        }, 2000);
+    };
+
     const syncFromWysiwyg = () => {
         if (!editorHandle) return markdownContent();
         const content = editorHandle.getMarkdown();
         updateMarkdownState(content);
+        triggerAutoSave();
         return content;
     };
 
@@ -196,7 +236,7 @@ const Editor: Component<EditorProps> = (props) => {
 
     const confirmDiscardChanges = () => {
         if (!isModified()) return true;
-        return window.confirm('当前文档有未保存的更改。继续操作将丢弃这些更改，是否继续？');
+        return window.confirm(t('file.confirmDiscard'));
     };
 
     const setLoadedDocument = (content: string, filePath: string | null) => {
@@ -235,7 +275,7 @@ const Editor: Component<EditorProps> = (props) => {
             lowerPath.endsWith('.markdown');
 
         if (!isTextFile) {
-            setErrorMessage('只能打开 .md、.markdown 或 .txt 文件。');
+            setErrorMessage(t('file.onlyMdTxt'));
             return;
         }
 
@@ -244,8 +284,8 @@ const Editor: Component<EditorProps> = (props) => {
             const content = await readTextFile(cleanedPath);
             setLoadedDocument(content, cleanedPath);
         } catch (error) {
-            console.error('加载文件失败:', error);
-            setErrorMessage(`加载文件失败：${error instanceof Error ? error.message : String(error)}`);
+            console.error(t('file.loadFailed') + ':', error);
+            setErrorMessage(`${t('file.loadFailed')}：${error instanceof Error ? error.message : String(error)}`);
         }
     };
 
@@ -312,6 +352,7 @@ const Editor: Component<EditorProps> = (props) => {
             const next = `${current.slice(0, start)}${markdown}${current.slice(end)}`;
             setSourceContent(next);
             updateMarkdownState(next, { preserveSource: true });
+            triggerAutoSave();
             setTimeout(() => {
                 if (!sourceTextArea) return;
                 const cursor = start + markdown.length;
@@ -365,8 +406,8 @@ const Editor: Component<EditorProps> = (props) => {
         try {
             await handleImageInsert(file);
         } catch (error) {
-            console.error('粘贴图片失败:', error);
-            setErrorMessage(`粘贴图片失败：${error instanceof Error ? error.message : String(error)}`);
+            console.error(t('image.pasteFailed') + ':', error);
+            setErrorMessage(`${t('image.pasteFailed')}：${error instanceof Error ? error.message : String(error)}`);
         }
     };
 
@@ -379,8 +420,8 @@ const Editor: Component<EditorProps> = (props) => {
                 await handleImageInsert(file);
             }
         } catch (error) {
-            console.error('拖拽图片失败:', error);
-            setErrorMessage(`拖拽图片失败：${error instanceof Error ? error.message : String(error)}`);
+            console.error(t('image.dropFailed') + ':', error);
+            setErrorMessage(`${t('image.dropFailed')}：${error instanceof Error ? error.message : String(error)}`);
         }
     };
 
@@ -417,8 +458,8 @@ const Editor: Component<EditorProps> = (props) => {
             if (!result) return;
             setLoadedDocument(result.content, result.path);
         } catch (error) {
-            console.error('打开文件失败:', error);
-            setErrorMessage(`打开文件失败：${error instanceof Error ? error.message : String(error)}`);
+            console.error(t('file.loadFailed') + ':', error);
+            setErrorMessage(`${t('file.loadFailed')}：${error instanceof Error ? error.message : String(error)}`);
         }
     };
 
@@ -446,9 +487,9 @@ const Editor: Component<EditorProps> = (props) => {
                 fixWysiwygImages();
             }
         } catch (error) {
-            console.error('保存文件失败:', error);
+            console.error(t('file.saveFailed') + ':', error);
             setIsModified(true);
-            setErrorMessage(`保存文件失败：${error instanceof Error ? error.message : String(error)}`);
+            setErrorMessage(`${t('file.saveFailed')}：${error instanceof Error ? error.message : String(error)}`);
         }
     };
 
@@ -465,9 +506,9 @@ const Editor: Component<EditorProps> = (props) => {
                 fixWysiwygImages();
             }
         } catch (error) {
-            console.error('另存为失败:', error);
+            console.error(t('file.saveAsFailed') + ':', error);
             setIsModified(true);
-            setErrorMessage(`另存为失败：${error instanceof Error ? error.message : String(error)}`);
+            setErrorMessage(`${t('file.saveAsFailed')}：${error instanceof Error ? error.message : String(error)}`);
         }
     };
 
@@ -475,7 +516,7 @@ const Editor: Component<EditorProps> = (props) => {
         try {
             setIsExporting(true);
             setExportProgress(0);
-            setExportMessage('准备导出...');
+            setExportMessage(t('export.progressTitle'));
             setShowExportMenu(false);
 
             const content = viewMode() === 'source' ? syncSourceToWysiwyg() : syncFromWysiwyg();
@@ -492,8 +533,8 @@ const Editor: Component<EditorProps> = (props) => {
             );
             setErrorMessage('');
         } catch (error) {
-            console.error('导出失败:', error);
-            setErrorMessage(`导出失败：${error instanceof Error ? error.message : String(error)}`);
+            console.error(t('export.failed') + ':', error);
+            setErrorMessage(`${t('export.failed')}：${error instanceof Error ? error.message : String(error)}`);
         } finally {
             setIsExporting(false);
             setExportProgress(0);
@@ -501,7 +542,144 @@ const Editor: Component<EditorProps> = (props) => {
         }
     };
 
+    const performSearch = (term: string) => {
+        const content = viewMode() === 'source' ? sourceContent() : markdownContent();
+        if (!term) {
+            setSearchResults([]);
+            setSearchIndex(0);
+            return;
+        }
+        const indices: number[] = [];
+        const lowerContent = content.toLowerCase();
+        const lowerTerm = term.toLowerCase();
+        let idx = 0;
+        while ((idx = lowerContent.indexOf(lowerTerm, idx)) !== -1) {
+            indices.push(idx);
+            idx += term.length;
+        }
+        setSearchResults(indices);
+        setSearchIndex(indices.length > 0 ? 1 : 0);
+    };
+
+    const scrollToSearchResult = (index: number) => {
+        const results = searchResults();
+        if (results.length === 0) return;
+        const content = viewMode() === 'source' ? sourceContent() : markdownContent();
+        const pos = results[index];
+
+        if (viewMode() === 'source' && sourceTextArea) {
+            sourceTextArea.focus();
+            sourceTextArea.setSelectionRange(pos, pos + searchTerm().length);
+            const lines = content.slice(0, pos).split('\n').length;
+            sourceTextArea.scrollTop = Math.max(0, (lines - 5) * 24);
+        } else if (viewMode() === 'wysiwyg') {
+            const contentBefore = content.slice(0, pos);
+            const headingCount = (contentBefore.match(/^#{1,6}\s/gm) || []).length;
+            const heading = milkdownRoot?.querySelector(`h${Math.min(6, headingCount + 1)}, p, li, td, th`);
+            if (heading instanceof HTMLElement) {
+                heading.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    };
+
+    const handleSearchNext = () => {
+        const results = searchResults();
+        if (results.length === 0) return;
+        const next = searchIndex() >= results.length ? 1 : searchIndex() + 1;
+        setSearchIndex(next);
+        scrollToSearchResult(next - 1);
+    };
+
+    const handleSearchPrev = () => {
+        const results = searchResults();
+        if (results.length === 0) return;
+        const prev = searchIndex() <= 1 ? results.length : searchIndex() - 1;
+        setSearchIndex(prev);
+        scrollToSearchResult(prev - 1);
+    };
+
+    const handleReplace = () => {
+        const results = searchResults();
+        if (results.length === 0) return;
+        const idx = searchIndex() - 1;
+        const content = viewMode() === 'source' ? sourceContent() : markdownContent();
+        const pos = results[idx];
+        const term = searchTerm();
+        const replacement = replaceTerm();
+        const newContent = content.slice(0, pos) + replacement + content.slice(pos + term.length);
+
+        if (viewMode() === 'source') {
+            setSourceContent(newContent);
+            updateMarkdownState(newContent, { preserveSource: true });
+        } else if (editorHandle) {
+            isProgrammaticChange = true;
+            editorHandle.setMarkdown(newContent);
+            isProgrammaticChange = false;
+            updateMarkdownState(newContent);
+        }
+        triggerAutoSave();
+        setSearchTerm('');
+        setReplaceTerm('');
+        setSearchVisible(false);
+    };
+
+    const handleReplaceAll = () => {
+        const term = searchTerm();
+        const replacement = replaceTerm();
+        if (!term) return;
+        const content = viewMode() === 'source' ? sourceContent() : markdownContent();
+        const newContent = term.startsWith('/') && term.endsWith('/')
+            ? content.replace(new RegExp(term.slice(1, -1), 'g'), replacement)
+            : content.split(term).join(replacement);
+
+        if (viewMode() === 'source') {
+            setSourceContent(newContent);
+            updateMarkdownState(newContent, { preserveSource: true });
+        } else if (editorHandle) {
+            isProgrammaticChange = true;
+            editorHandle.setMarkdown(newContent);
+            isProgrammaticChange = false;
+            updateMarkdownState(newContent);
+        }
+        triggerAutoSave();
+        setSearchVisible(false);
+    };
+
+    const openSearch = () => {
+        setSearchVisible(true);
+    };
+
+    const closeSearch = () => {
+        setSearchVisible(false);
+        setSearchTerm('');
+        setReplaceTerm('');
+        setSearchResults([]);
+        setSearchIndex(0);
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
+        const activeEl = document.activeElement;
+        const isSearchInput = activeEl?.closest('.search-row');
+
+        if (e.key === 'Escape') {
+            closeSearch();
+            return;
+        }
+
+        if (isSearchInput) {
+            if (e.key === 'Enter' && e.shiftKey) {
+                e.preventDefault();
+                handleSearchPrev();
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSearchNext();
+                return;
+            }
+            return;
+        }
+
         if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) {
             e.preventDefault();
         } else if (e.ctrlKey && e.key === '/') {
@@ -513,6 +691,9 @@ const Editor: Component<EditorProps> = (props) => {
         } else if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
             e.preventDefault();
             handleSaveFile();
+        } else if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+            e.preventDefault();
+            openSearch();
         }
     };
 
@@ -529,9 +710,9 @@ const Editor: Component<EditorProps> = (props) => {
 
     const getFileName = () => {
         const path = currentFilePath();
-        if (!path) return '未命名文档';
+        if (!path) return t('file.unnamed');
         const parts = path.split(/[/\\]/);
-        return parts[parts.length - 1] || '未命名文档';
+        return parts[parts.length - 1] || t('file.unnamed');
     };
 
     const jumpToLine = (lineNumber: number, headingText?: string) => {
@@ -581,6 +762,7 @@ const Editor: Component<EditorProps> = (props) => {
                 if (isProgrammaticChange) return;
                 updateMarkdownState(markdown);
                 fixWysiwygImages();
+                triggerAutoSave();
             })
                 .then((handle) => {
                     editorHandle = handle;
@@ -598,8 +780,8 @@ const Editor: Component<EditorProps> = (props) => {
                     }
                 })
                 .catch((error) => {
-                    console.error('初始化 WYSIWYG 编辑器失败:', error);
-                    setErrorMessage(`初始化 WYSIWYG 编辑器失败：${error instanceof Error ? error.message : String(error)}`);
+                    console.error(t('editor.initFailed') + ':', error);
+                    setErrorMessage(`${t('editor.initFailed')}：${error instanceof Error ? error.message : String(error)}`);
                 });
         }
     });
@@ -607,6 +789,7 @@ const Editor: Component<EditorProps> = (props) => {
     onCleanup(() => {
         window.removeEventListener('keydown', handleKeyDown);
         document.removeEventListener('click', handleClickOutside);
+        if (autoSaveTimer) clearTimeout(autoSaveTimer);
         if (milkdownRoot) {
             milkdownRoot.removeEventListener('paste', handlePasteEvent);
             milkdownRoot.removeEventListener('drop', handleDropEvent);
@@ -645,10 +828,10 @@ const Editor: Component<EditorProps> = (props) => {
     });
 
     return (
-        <div class="editor-container">
+        <div class="editor-container" style={{ position: 'relative' }}>
             <div class="editor-header">
                 <div class="header-left">
-                    <h1>DongshanMD</h1>
+                    <h1>{t('app.title')}</h1>
                     <span class="file-name" title={currentFilePath() || ''}>
                         {getFileName()}
                         {isModified() && <span class="modified-indicator"> *</span>}
@@ -659,26 +842,68 @@ const Editor: Component<EditorProps> = (props) => {
                 </div>
                 <div class="header-right">
                     <div class="file-actions">
-                        <button class="file-btn" onClick={handleOpenFile} title="打开文件 (Ctrl+O)">打开</button>
-                        <button class="file-btn" onClick={handleSaveFile} title="保存文件 (Ctrl+S)">保存</button>
-                        <button class="file-btn" onClick={handleSaveAsFile} title="另存为">另存为</button>
+                        <button class="file-btn" onClick={handleOpenFile} title={t('file.openTitle')}>{t('file.open')}</button>
+                        <button class="file-btn" onClick={handleSaveFile} title={t('file.saveTitle')}>{t('file.save')}</button>
+                        <button class="file-btn" onClick={handleSaveAsFile} title={t('file.saveAsTitle')}>{t('file.saveAs')}</button>
                         <div class="export-menu-container">
-                            <button class="file-btn" onClick={() => setShowExportMenu(!showExportMenu())} title="导出文档">
-                                导出
+                            <button class="file-btn" onClick={() => setShowExportMenu(!showExportMenu())} title={t('file.exportTitle')}>
+                                {t('file.export')}
                             </button>
                             {showExportMenu() && (
                                 <div class="export-menu">
-                                    <button class="export-menu-item" onClick={() => handleExport('word')}>Word (.docx)</button>
-                                    <button class="export-menu-item" onClick={() => handleExport('pdf')}>PDF (.pdf)</button>
-                                    <button class="export-menu-item" onClick={() => handleExport('png')}>PNG (.png)</button>
-                                    <button class="export-menu-item" onClick={() => handleExport('html')}>HTML (.html)</button>
+                                    <button class="export-menu-item" onClick={() => handleExport('word')}>{t('export.word')}</button>
+                                    <button class="export-menu-item" onClick={() => handleExport('pdf')}>{t('export.pdf')}</button>
+                                    <button class="export-menu-item" onClick={() => handleExport('png')}>{t('export.png')}</button>
+                                    <button class="export-menu-item" onClick={() => handleExport('html')}>{t('export.html')}</button>
                                 </div>
                             )}
                         </div>
                     </div>
-                    <button class="file-btn" onClick={() => setShowSettings(true)} title="设置">设置</button>
+                    <button class="file-btn" onClick={() => setShowSettings(true)} title={t('settings.title')}>{t('settings.title')}</button>
                 </div>
             </div>
+
+            <Show when={searchVisible()}>
+                <div class="search-dialog">
+                    <div class="search-row">
+                        <input
+                            type="text"
+                            placeholder={t('search.find')}
+                            value={searchTerm()}
+                            onInput={(e) => {
+                                setSearchTerm(e.currentTarget.value);
+                                performSearch(e.currentTarget.value);
+                            }}
+                            autofocus
+                        />
+                        <div class="search-actions">
+                            <button class="search-btn" onClick={handleSearchPrev} disabled={searchResults().length === 0} title={t('search.prev')}>&#9664;</button>
+                            <button class="search-btn" onClick={handleSearchNext} disabled={searchResults().length === 0} title={t('search.next')}>&#9654;</button>
+                            <button class="search-btn" onClick={closeSearch} title="">&#10005;</button>
+                        </div>
+                    </div>
+                    <div class="search-row">
+                        <input
+                            type="text"
+                            placeholder={t('search.replace')}
+                            value={replaceTerm()}
+                            onInput={(e) => setReplaceTerm(e.currentTarget.value)}
+                        />
+                        <div class="search-actions">
+                            <button class="search-btn" onClick={handleReplace} disabled={searchResults().length === 0}>{t('search.replace')}</button>
+                            <button class="search-btn" onClick={handleReplaceAll} disabled={!searchTerm()}>{t('search.replaceAll')}</button>
+                        </div>
+                    </div>
+                    <Show when={searchTerm() && searchResults().length > 0}>
+                        <div class="search-info">
+                            {t('search.count', { count: searchResults().length })} &middot; {searchIndex()}/{searchResults().length}
+                        </div>
+                    </Show>
+                    <Show when={searchTerm() && searchResults().length === 0}>
+                        <div class="search-info">{t('search.noResults')}</div>
+                    </Show>
+                </div>
+            </Show>
 
             <div class="editor-body">
                 <div ref={milkdownRoot} class={`milkdown-host ${viewMode() === 'wysiwyg' ? 'active' : 'hidden'}`} />
@@ -691,6 +916,7 @@ const Editor: Component<EditorProps> = (props) => {
                         const content = event.currentTarget.value;
                         setSourceContent(content);
                         updateMarkdownState(content, { preserveSource: true });
+                        triggerAutoSave();
                     }}
                 />
             </div>
@@ -698,7 +924,7 @@ const Editor: Component<EditorProps> = (props) => {
             {isExporting() && (
                 <div class="export-progress-overlay">
                     <div class="export-progress-dialog">
-                        <div class="export-progress-title">正在导出...</div>
+                        <div class="export-progress-title">{t('export.progressTitle')}</div>
                         <div class="export-progress-bar-container">
                             <div ref={progressBarElement} class="export-progress-bar" />
                         </div>
@@ -711,9 +937,10 @@ const Editor: Component<EditorProps> = (props) => {
             {showSettings() && (
                 <div class="settings-overlay" onClick={closeSettings}>
                     <div class="settings-dialog" onClick={(e) => e.stopPropagation()}>
-                        <div class="settings-title">设置</div>
+                        <div class="settings-title">{t('settings.title')}</div>
+
                         <div class="settings-row">
-                            <div class="settings-label">图片粘贴方式</div>
+                            <div class="settings-label">{t('settings.imagePaste')}</div>
                             <select
                                 class="settings-select"
                                 value={imagePasteMode()}
@@ -723,12 +950,59 @@ const Editor: Component<EditorProps> = (props) => {
                                     localStorage.setItem('imagePasteMode', value);
                                 }}
                             >
-                                <option value="base64">Base64（嵌入）</option>
-                                <option value="relative">相对路径（保存文件）</option>
+                                <option value="base64">{t('settings.imagePaste.base64')}</option>
+                                <option value="relative">{t('settings.imagePaste.relative')}</option>
                             </select>
                         </div>
+
+                        <div class="settings-row">
+                            <div class="settings-label">{t('settings.autoSave')}</div>
+                            <select
+                                class="settings-select"
+                                value={autoSaveEnabled() ? 'enabled' : 'disabled'}
+                                onChange={(e) => {
+                                    const enabled = e.currentTarget.value === 'enabled';
+                                    setAutoSaveEnabled(enabled);
+                                    localStorage.setItem('autoSave', String(enabled));
+                                }}
+                            >
+                                <option value="enabled">{t('settings.autoSaveEnabled')}</option>
+                                <option value="disabled">{t('settings.autoSaveDisabled')}</option>
+                            </select>
+                        </div>
+
+                        <div class="settings-row">
+                            <div class="settings-label">{t('settings.theme')}</div>
+                            <select
+                                class="settings-select"
+                                value={currentTheme()}
+                                onChange={(e) => {
+                                    const theme = e.currentTarget.value;
+                                    setCurrentTheme(theme);
+                                    applyTheme(theme);
+                                }}
+                            >
+                                <option value="light">{t('settings.theme.light')}</option>
+                                <option value="dark">{t('settings.theme.dark')}</option>
+                            </select>
+                        </div>
+
+                        <div class="settings-row">
+                            <div class="settings-label">{t('settings.language')}</div>
+                            <select
+                                class="settings-select"
+                                value={getLocale()}
+                                onChange={(e) => {
+                                    setLocale(e.currentTarget.value as 'zh-CN' | 'en-US');
+                                }}
+                            >
+                                <option value="zh-CN">{t('settings.language.zh')}</option>
+                                <option value="en-US">{t('settings.language.en')}</option>
+                            </select>
+                        </div>
+
                         <div class="settings-actions">
-                            <button class="file-btn" onClick={closeSettings}>关闭</button>
+                            <button class="file-btn" onClick={closeSettings}>{t('settings.close')}</button>
                         </div>
                     </div>
                 </div>

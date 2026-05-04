@@ -2,7 +2,55 @@ import { Component, createSignal, onMount } from 'solid-js';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import Editor from './components/Editor';
 import Sidebar from './components/Sidebar';
+import { listDirectoryFiles } from './utils/fileOperations';
+import { t } from './utils/i18n';
 import './App.css';
+
+const RECENT_FILES_KEY = 'dongshan_recent_files';
+const MAX_RECENT = 20;
+
+const loadRecentFiles = (): string[] => {
+  try {
+    const data = localStorage.getItem(RECENT_FILES_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveRecentFiles = (files: string[]) => {
+  try {
+    localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(files));
+  } catch { /* ignore */ }
+};
+
+const addRecentFile = (filePath: string) => {
+  const recent = loadRecentFiles();
+  const filtered = recent.filter(f => f !== filePath);
+  filtered.unshift(filePath);
+  const trimmed = filtered.slice(0, MAX_RECENT);
+  saveRecentFiles(trimmed);
+  return trimmed;
+};
+
+const getInitialTheme = (): string => {
+  const stored = localStorage.getItem('theme');
+  if (stored) return stored;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+};
+
+const applyTheme = (theme: string) => {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+};
+
+const getDirPath = (filePath: string): string | null => {
+  const lastSlash = filePath.lastIndexOf('/');
+  const lastBack = filePath.lastIndexOf('\\');
+  const lastSep = Math.max(lastSlash, lastBack);
+  if (lastSep <= 0) return null;
+  return filePath.slice(0, lastSep);
+};
 
 const App: Component = () => {
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
@@ -10,9 +58,29 @@ const App: Component = () => {
   const [fileToOpen, setFileToOpen] = createSignal<string | null>(null);
   const [openFiles, setOpenFiles] = createSignal<string[]>([]);
   const [currentFilePath, setCurrentFilePath] = createSignal<string | null>(null);
+  const [dirFiles, setDirFiles] = createSignal<string[]>([]);
+  const [recentFiles, setRecentFiles] = createSignal<string[]>(loadRecentFiles());
+
+  onMount(() => {
+    applyTheme(getInitialTheme());
+  });
 
   const toggleSidebar = () => {
     setSidebarVisible(!sidebarVisible());
+  };
+
+  const refreshDirFiles = async (filePath: string | null) => {
+    if (!filePath) {
+      setDirFiles([]);
+      return;
+    }
+    const dirPath = getDirPath(filePath);
+    if (!dirPath) {
+      setDirFiles([]);
+      return;
+    }
+    const files = await listDirectoryFiles(dirPath);
+    setDirFiles(files);
   };
 
   const handleContentChange = (content: string) => {
@@ -20,39 +88,35 @@ const App: Component = () => {
   };
 
   const handleFilePathChange = (filePath: string | null) => {
-    console.log('handleFilePathChange 被调用:', filePath);
     setCurrentFilePath(filePath);
     if (filePath) {
-      // 添加到打开文件列表（如果不存在）
       setOpenFiles(prev => {
         if (!prev.includes(filePath)) {
-          const newList = [...prev, filePath];
-          console.log('更新文件列表:', newList);
-          return newList;
+          return [...prev, filePath];
         }
         return prev;
       });
+      setRecentFiles(addRecentFile(filePath));
+      refreshDirFiles(filePath);
+    } else {
+      setDirFiles([]);
     }
   };
 
   const handleHeadingClick = (lineNumber: number, headingText?: string) => {
-    // 调用编辑器的跳转方法
     if ((window as any).__editorJumpToLine) {
       (window as any).__editorJumpToLine(lineNumber, headingText);
     }
   };
 
-  // 监听文件打开事件
   onMount(async () => {
     let unlisten: UnlistenFn | null = null;
     const isTauri = Boolean((window as any).__TAURI_INTERNALS__);
     if (isTauri) {
       try {
-        // 监听来自 Rust 后端的文件打开事件
         unlisten = await listen<string>('open-file', (event) => {
           const filePath = event.payload;
           if (filePath) {
-            console.log('收到文件打开事件:', filePath);
             setFileToOpen(filePath);
           }
         });
@@ -61,26 +125,20 @@ const App: Component = () => {
       }
     }
 
-    // 开发模式下暴露测试函数
     if (import.meta.env.DEV) {
       (window as any).__devOpenFile = (filePath: string) => {
-        console.log('开发模式：手动打开文件', filePath);
         setFileToOpen(filePath);
       };
     }
 
-    // 检查启动参数中的文件路径
     if (isTauri) {
       try {
-        // 通过 Rust 后端获取命令行参数
         const { invoke } = await import('@tauri-apps/api/core');
         const args = await invoke<string[]>('get_file_args').catch(() => null);
 
         if (args && args.length > 0) {
-          // 清理文件路径，移除可能的引号
           const cleanPath = (path: string) => path.trim().replace(/^["']|["']$/g, '');
 
-          // 过滤出文件路径（排除程序路径和可执行文件）
           const fileArgs = args
             .map(cleanPath)
             .filter(arg => {
@@ -93,9 +151,7 @@ const App: Component = () => {
             });
 
           if (fileArgs.length > 0) {
-            // 使用第一个有效的文件路径
             const filePath = fileArgs[0];
-            console.log('从启动参数加载文件:', filePath);
             setFileToOpen(filePath);
           }
         }
@@ -104,7 +160,6 @@ const App: Component = () => {
       }
     }
 
-    // 清理函数
     return () => {
       unlisten?.();
     };
@@ -119,7 +174,12 @@ const App: Component = () => {
         onHeadingClick={handleHeadingClick}
         openFiles={openFiles()}
         currentFilePath={currentFilePath()}
-        onFileClick={(filePath) => setFileToOpen(filePath)}
+        dirFiles={dirFiles()}
+        recentFiles={recentFiles()}
+        onFileClick={(filePath) => {
+          setFileToOpen(filePath);
+          refreshDirFiles(filePath);
+        }}
       />
       <div class="main-content" classList={{ 'with-sidebar': sidebarVisible() }}>
         <Editor 
@@ -130,8 +190,8 @@ const App: Component = () => {
         />
       </div>
       {!sidebarVisible() && (
-        <button class="sidebar-toggle" onClick={toggleSidebar} title="显示侧边栏">
-          ☰
+        <button class="sidebar-toggle" onClick={toggleSidebar} title={t('sidebar.toggle')}>
+          &#9776;
         </button>
       )}
     </div>

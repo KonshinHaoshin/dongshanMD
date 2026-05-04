@@ -1,8 +1,8 @@
 .sidebar {
   width: 250px;
   height: 100%;
-  background: #f8f8f8;
-  border-right: 1px solid #e0e0e0;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -20,11 +20,11 @@
 
 .sidebar-header {
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fff;
+  background: var(--bg-header);
   gap: 8px;
 }
 
@@ -38,29 +38,29 @@
   flex: 1;
   padding: 6px 12px;
   font-size: 12px;
-  border: 1px solid #e0e0e0;
-  background: #f5f5f5;
-  color: #666;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--text-secondary);
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s;
 }
 
 .tab-btn:hover {
-  background: #e8e8e8;
+  background: var(--tab-hover-bg);
 }
 
 .tab-btn.active {
-  background: #4285f4;
-  color: #fff;
-  border-color: #4285f4;
+  background: var(--btn-active-bg);
+  color: var(--btn-active-text);
+  border-color: var(--btn-active-bg);
 }
 
 .sidebar-close {
   background: none;
   border: none;
   font-size: 20px;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px 8px;
   width: 28px;
@@ -74,8 +74,8 @@
 }
 
 .sidebar-close:hover {
-  color: #333;
-  background: #f0f0f0;
+  color: var(--text-primary);
+  background: var(--tab-hover-bg);
 }
 
 .sidebar-content {
@@ -101,23 +101,23 @@
 }
 
 .file-item:hover {
-  background: #e8e8e8;
+  background: var(--outline-hover-bg);
 }
 
 .file-item.active {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--btn-active-bg);
+  color: var(--btn-active-text);
   font-weight: 500;
 }
 
 .file-item.active:hover {
-  background: #bbdefb;
+  background: var(--btn-active-bg);
 }
 
 .file-empty {
   padding: 16px;
   text-align: center;
-  color: #999;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -127,10 +127,9 @@
 
 .file-name {
   font-size: 14px;
-  color: #333;
+  color: var(--text-primary);
 }
 
-/* 大纲样式 */
 .outline-tree {
   padding: 8px;
 }
@@ -138,7 +137,7 @@
 .outline-empty {
   padding: 20px;
   text-align: center;
-  color: #999;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -151,19 +150,18 @@
 }
 
 .outline-item:hover {
-  background: #e8e8e8;
+  background: var(--outline-hover-bg);
 }
 
 .outline-text {
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 不同级别的标题缩进 */
 .outline-item.level-1 {
   padding-left: 12px;
   font-weight: 600;
@@ -196,4 +194,3 @@
   font-weight: 400;
   font-size: 12px;
 }
-

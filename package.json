@@ -7,10 +7,14 @@
         "dev": "vite",
         "build": "tsc && vite build",
         "preview": "vite preview",
-        "tauri": "tauri"
+        "tauri": "tauri",
+        "test": "vitest run"
     },
     "dependencies": {
         "@milkdown/kit": "^7.20.0",
+        "@milkdown/plugin-diagram": "^7.7.0",
+        "@milkdown/plugin-math": "^7.5.9",
+        "@milkdown/plugin-prism": "^7.20.0",
         "@tauri-apps/api": "2.9.0",
         "@tauri-apps/plugin-dialog": "^2.4.2",
         "@tauri-apps/plugin-fs": "^2.4.4",
@@ -19,7 +23,9 @@
         "html2canvas": "^1.4.1",
         "html2pdf.js": "^0.12.1",
         "jspdf": "^3.0.4",
+        "katex": "^0.16.45",
         "marked": "^17.0.1",
+        "mermaid": "^11.14.0",
         "solid-js": "^1.8.0"
     },
     "devDependencies": {

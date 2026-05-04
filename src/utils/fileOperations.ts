@@ -1,5 +1,30 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs';
+
+const SUPPORTED_EXTENSIONS = ['md', 'markdown', 'txt'];
+
+/**
+ * 列出目录中受支持的文件
+ */
+export async function listDirectoryFiles(dirPath: string): Promise<string[]> {
+  try {
+    const entries = await readDir(dirPath);
+    const files = entries
+      .filter(entry => {
+        if (!entry.name) return false;
+        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+        return SUPPORTED_EXTENSIONS.includes(ext);
+      })
+      .map(entry => {
+        const separator = dirPath.includes('\\') ? '\\' : '/';
+        return `${dirPath.replace(/[/\\]+$/, '')}${separator}${entry.name}`;
+      })
+      .sort((a, b) => a.localeCompare(b));
+    return files;
+  } catch {
+    return [];
+  }
+}
 
 /**
  * 打开文件对话框并读取文件内容
