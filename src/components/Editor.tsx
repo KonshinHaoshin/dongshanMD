@@ -676,23 +676,6 @@ const Editor: Component<EditorProps> = (props) => {
                             )}
                         </div>
                     </div>
-                    <div class="view-mode-indicator">
-                        <span class="mode-label">模式:</span>
-                        <button
-                            class={`mode-btn ${viewMode() === 'wysiwyg' ? 'active' : ''}`}
-                            onClick={() => switchViewMode('wysiwyg')}
-                            title="所见即所得模式 (Ctrl+/)"
-                        >
-                            所见即所得
-                        </button>
-                        <button
-                            class={`mode-btn ${viewMode() === 'source' ? 'active' : ''}`}
-                            onClick={() => switchViewMode('source')}
-                            title="Markdown 源码模式 (Ctrl+/)"
-                        >
-                            源码
-                        </button>
-                    </div>
                     <button class="file-btn" onClick={() => setShowSettings(true)} title="设置">设置</button>
                 </div>
             </div>

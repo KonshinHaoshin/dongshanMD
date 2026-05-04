@@ -273,18 +273,17 @@ export async function exportToPDF(
     
     onProgress?.(30, '正在生成 PDF...');
     
-    // 查找预览区域，如果存在则使用预览区域的内容
-    const previewElement = document.querySelector('.cherry-editor__preview') 
-      || document.querySelector('.cherry-previewer')
-      || document.querySelector('[class*="preview"]');
+    // 查找编辑器内容区域
+    const previewElement = document.querySelector('.milkdown-host .ProseMirror')
+      || document.querySelector('.ProseMirror');
     
     let targetElement: HTMLElement;
     let isTempElement = false;
     
     if (previewElement && previewElement instanceof HTMLElement && previewElement.innerHTML.trim()) {
-      // 使用预览区域的内容
+      // 使用编辑器渲染内容
       targetElement = previewElement;
-      onProgress?.(50, '正在从预览区域转换为 PDF...');
+      onProgress?.(50, '正在从编辑器内容转换为 PDF...');
     } else {
       // 创建临时 div 来渲染 HTML
       const tempDiv = document.createElement('div');
@@ -378,15 +377,14 @@ export async function exportToPNG(
   onProgress?: ExportProgressCallback
 ): Promise<void> {
   try {
-    onProgress?.(10, '正在查找预览区域...');
+    onProgress?.(10, '正在查找编辑器内容区域...');
     
-    // 查找预览区域
-    const previewElement = document.querySelector('.cherry-editor__preview') 
-      || document.querySelector('.cherry-previewer')
-      || document.querySelector('[class*="preview"]');
+    // 查找编辑器内容区域
+    const previewElement = document.querySelector('.milkdown-host .ProseMirror')
+      || document.querySelector('.ProseMirror');
     
     if (!previewElement) {
-      throw new Error('未找到预览区域，请先切换到预览模式');
+      throw new Error('未找到编辑器内容区域，请确保编辑器已加载');
     }
     
     // 确保滚动到顶部

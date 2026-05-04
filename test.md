@@ -1,13 +1,13 @@
 # DongshanMD
 
-一个基于 Tauri + SolidJS + TypeScript + CherryMarkdown 的 Markdown 编辑器。
+一个基于 Tauri + SolidJS + TypeScript + Milkdown 的 Markdown 编辑器。
 
 ## 技术栈
 
 - **Tauri**: 跨平台桌面应用框架
 - **SolidJS**: 高性能响应式 UI 框架
 - **TypeScript**: 类型安全的 JavaScript
-- **CherryMarkdown**: 强大的 Markdown 编辑器
+- **Milkdown**: 基于 ProseMirror 的 WYSIWYG Markdown 编辑器框架
 
 ## 开发
 
